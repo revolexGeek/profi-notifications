@@ -1,0 +1,5 @@
+[test]
+# Enforce the TDD skill's minimum coverage bar on `bun test --coverage`.
+coverageThreshold = 0.8
+coverageSkipTestFiles = true
+coverageReporter = ["text"]

@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Bun
+.bun/
+
+# Coverage / build artifacts
+coverage/
+dist/
+*.tsbuildinfo
+
+# Logs
+*.log
