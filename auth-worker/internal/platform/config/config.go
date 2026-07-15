@@ -19,6 +19,7 @@ type Config struct {
 	RenewURL  string
 	UserAgent string
 	LogLevel  string
+	GRPCAddr  string
 
 	RefreshBeforeSeconds int64
 
@@ -45,6 +46,7 @@ func Load() Config {
 		RenewURL:  env("PROFI_RENEW_URL", "https://profi.ru/auth/token/renew/?login"),
 		UserAgent: env("PROFI_USER_AGENT", defaultUserAgent),
 		LogLevel:  env("LOG_LEVEL", "INFO"),
+		GRPCAddr:  env("PROFI_GRPC_ADDR", "127.0.0.1:50051"),
 
 		RefreshBeforeSeconds: envInt("PROFI_REFRESH_BEFORE", 180),
 
