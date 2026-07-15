@@ -16,6 +16,9 @@ pub enum ParserError {
     #[error("ошибка публикации результата: {0}")]
     Publish(String),
 
+    #[error("ошибка очереди: {0}")]
+    Queue(String),
+
     #[error("ошибка разбора ответа: {0}")]
     Decode(String),
 }
