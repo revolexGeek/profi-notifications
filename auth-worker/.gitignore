@@ -1,0 +1,30 @@
+# Runtime state — real cookies, auth status, lock file (never commit secrets)
+data/
+
+# Compiled binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/auth-worker
+
+# Test binary produced by `go test -c`
+*.test
+
+# Coverage and profiling output
+*.out
+coverage.*
+*.prof
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Vendored dependencies (module mode does not need them checked in)
+/vendor/
+
+# Editor / OS noise
+.idea/
+.vscode/
+.DS_Store

@@ -44,3 +44,11 @@ hooks = [
   { id = "ruff-check", args = ["--fix"], files = "^parser/.*\\.py$" },
   { id = "ruff-format", files = "^parser/.*\\.py$" },
 ]
+
+[[repos]]
+repo = "local"
+hooks = [
+  { id = "go-fmt", name = "go fmt", language = "system", entry = "gofmt -l -w", files = "^auth-worker/.*\\.go$" },
+  { id = "go-vet", name = "go vet", language = "system", entry = "go -C auth-worker vet ./...", files = "^auth-worker/.*\\.go$", pass_filenames = false },
+  { id = "go-test", name = "go test", language = "system", entry = "go -C auth-worker test ./...", files = "^auth-worker/.*\\.go$", pass_filenames = false },
+]
