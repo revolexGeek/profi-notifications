@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -18,6 +19,7 @@ import (
 
 	"auth-worker/internal/adapter/cookiefile"
 	"auth-worker/internal/adapter/filelock"
+	"auth-worker/internal/adapter/grpcclient"
 	"auth-worker/internal/adapter/grpcserver"
 	"auth-worker/internal/adapter/httprenew"
 	"auth-worker/internal/adapter/statusfile"
@@ -28,6 +30,12 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		runHealthCheck(cfg)
+		return
+	}
+
 	logger := newLogger(cfg.LogLevel)
 
 	systemClock := clock.System{}
@@ -85,6 +93,7 @@ func serveGRPC(addr string, getCookies grpcserver.CookieProvider, logger *slog.L
 
 	server := grpc.NewServer()
 	grpcserver.New(getCookies, logger).Register(server)
+	grpcserver.NewHealth(getCookies, logger).Register(server)
 
 	go func() {
 		if serveErr := server.Serve(listener); serveErr != nil {
@@ -94,6 +103,27 @@ func serveGRPC(addr string, getCookies grpcserver.CookieProvider, logger *slog.L
 
 	logger.Info("gRPC server listening", "addr", addr)
 	return server, nil
+}
+
+func runHealthCheck(cfg config.Config) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := grpcclient.CheckHealth(ctx, healthTarget(cfg.GRPCAddr)); err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		os.Exit(1)
+	}
+}
+
+func healthTarget(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, port)
 }
 
 func runLoop(ctx context.Context, worker *usecase.Worker, logger *slog.Logger) {
