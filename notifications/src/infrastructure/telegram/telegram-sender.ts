@@ -10,6 +10,8 @@ export interface TelegramSenderOptions {
   readonly chatId: string;
   readonly baseUrl?: string;
   readonly timeoutMs?: number;
+  /** Default forum topic; a notification's own messageThreadId overrides it. */
+  readonly messageThreadId?: number;
   readonly fetch?: FetchLike;
 }
 
@@ -30,6 +32,7 @@ export class TelegramNotificationSender implements NotificationSender {
   private readonly endpoint: string;
   private readonly chatId: string;
   private readonly timeoutMs: number;
+  private readonly defaultThreadId: number | undefined;
   private readonly fetchImpl: FetchLike;
 
   constructor(options: TelegramSenderOptions) {
@@ -37,6 +40,7 @@ export class TelegramNotificationSender implements NotificationSender {
     this.endpoint = `${baseUrl}/bot${options.botToken}/sendMessage`;
     this.chatId = options.chatId;
     this.timeoutMs = options.timeoutMs ?? 10_000;
+    this.defaultThreadId = options.messageThreadId;
     this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
   }
 
@@ -72,6 +76,10 @@ export class TelegramNotificationSender implements NotificationSender {
       chat_id: this.chatId,
       text: notification.text,
     };
+    const threadId = notification.messageThreadId ?? this.defaultThreadId;
+    if (threadId !== undefined) {
+      payload.message_thread_id = threadId;
+    }
     if (notification.parseMode !== undefined) {
       payload.parse_mode = notification.parseMode;
     }

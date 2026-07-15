@@ -12,6 +12,7 @@ export const notificationMessageSchema = z.object({
   parseMode: z.enum(PARSE_MODES).optional(),
   disableNotification: z.boolean().optional(),
   disableWebPagePreview: z.boolean().optional(),
+  messageThreadId: z.number().int().positive().optional(),
 });
 
 export type ParseSuccess = { readonly ok: true; readonly command: NotificationCommand };

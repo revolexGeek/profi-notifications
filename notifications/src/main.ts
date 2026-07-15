@@ -32,6 +32,7 @@ async function main(): Promise<void> {
     chatId: config.telegram.chatId,
     baseUrl: config.telegram.baseUrl,
     timeoutMs: config.telegram.timeoutMs,
+    messageThreadId: config.telegram.messageThreadId,
   });
 
   const useCase = new SendNotificationUseCase({

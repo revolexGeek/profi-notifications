@@ -163,3 +163,50 @@ describe('TelegramNotificationSender', () => {
     }
   });
 });
+
+describe('TelegramNotificationSender forum topics', () => {
+  function captureSender(options: { messageThreadId?: number }) {
+    const captured: CapturedRequest[] = [];
+    const fetchImpl: FetchLike = async (url, init) => {
+      captured.push({ url, init });
+      return jsonResponse({ ok: true });
+    };
+    const sender = new TelegramNotificationSender({
+      botToken: 'B',
+      chatId: '@c',
+      baseUrl: 'https://tg.test',
+      ...(options.messageThreadId !== undefined
+        ? { messageThreadId: options.messageThreadId }
+        : {}),
+      fetch: fetchImpl,
+    });
+    return { sender, captured };
+  }
+
+  it('sends the default topic from options', async () => {
+    const { sender, captured } = captureSender({ messageThreadId: 7 });
+
+    await sender.send({ text: 'hi' });
+
+    const payload = JSON.parse(String(captured[0]!.init.body));
+    expect(payload.message_thread_id).toBe(7);
+  });
+
+  it('lets a notification override the default topic', async () => {
+    const { sender, captured } = captureSender({ messageThreadId: 7 });
+
+    await sender.send({ text: 'hi', messageThreadId: 42 });
+
+    const payload = JSON.parse(String(captured[0]!.init.body));
+    expect(payload.message_thread_id).toBe(42);
+  });
+
+  it('omits message_thread_id when neither default nor override is set', async () => {
+    const { sender, captured } = captureSender({});
+
+    await sender.send({ text: 'hi' });
+
+    const payload = JSON.parse(String(captured[0]!.init.body));
+    expect(payload.message_thread_id).toBeUndefined();
+  });
+});

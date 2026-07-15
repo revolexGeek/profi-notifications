@@ -22,11 +22,24 @@ describe('createNotification', () => {
       parseMode: 'MarkdownV2',
       disableNotification: true,
       disableWebPagePreview: false,
+      messageThreadId: 2,
     };
 
     const notification = createNotification(command);
 
     expect(notification).toEqual(command);
+  });
+
+  it('rejects a non-positive or non-integer messageThreadId', () => {
+    expect(() => createNotification({ text: 'x', messageThreadId: 0 })).toThrow(
+      NotificationValidationError,
+    );
+    expect(() => createNotification({ text: 'x', messageThreadId: -5 })).toThrow(
+      NotificationValidationError,
+    );
+    expect(() => createNotification({ text: 'x', messageThreadId: 1.5 })).toThrow(
+      /positive integer/,
+    );
   });
 
   it('omits optional fields instead of storing undefined values', () => {

@@ -13,6 +13,8 @@ const EnvSchema = z.object({
     .regex(/^https?:\/\//, 'must start with http:// or https://')
     .default('https://api.telegram.org'),
   TELEGRAM_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+  // Default forum topic (message_thread_id) for supergroups with topics.
+  TELEGRAM_MESSAGE_THREAD_ID: z.coerce.number().int().positive().optional(),
 
   RABBITMQ_URL: z.string().min(1, 'RABBITMQ_URL is required'),
   RABBITMQ_PREFETCH: z.coerce.number().int().positive().default(10),
@@ -40,6 +42,7 @@ export interface TelegramConfig {
   readonly chatId: string;
   readonly baseUrl: string;
   readonly timeoutMs: number;
+  readonly messageThreadId?: number;
 }
 
 export interface RabbitConfig {
@@ -104,6 +107,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       chatId: e.TELEGRAM_CHAT_ID,
       baseUrl: e.TELEGRAM_API_BASE_URL,
       timeoutMs: e.TELEGRAM_TIMEOUT_MS,
+      ...(e.TELEGRAM_MESSAGE_THREAD_ID !== undefined
+        ? { messageThreadId: e.TELEGRAM_MESSAGE_THREAD_ID }
+        : {}),
     },
     rabbit: {
       url: e.RABBITMQ_URL,

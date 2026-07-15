@@ -45,6 +45,17 @@ describe('loadConfig', () => {
     expect(config.http.port).toBe(8080);
   });
 
+  it('parses the optional forum topic id and leaves it undefined by default', () => {
+    expect(loadConfig(REQUIRED).telegram.messageThreadId).toBeUndefined();
+    expect(loadConfig({ ...REQUIRED, TELEGRAM_MESSAGE_THREAD_ID: '2' }).telegram.messageThreadId).toBe(
+      2,
+    );
+  });
+
+  it('rejects a non-positive forum topic id', () => {
+    expect(() => loadConfig({ ...REQUIRED, TELEGRAM_MESSAGE_THREAD_ID: '0' })).toThrow(ConfigError);
+  });
+
   it('throws when a required var is missing', () => {
     expect(() => loadConfig({ TELEGRAM_BOT_TOKEN: 't', TELEGRAM_CHAT_ID: 'c' })).toThrow(
       ConfigError,

@@ -23,6 +23,8 @@ export interface NotificationCommand {
   readonly parseMode?: ParseMode;
   readonly disableNotification?: boolean;
   readonly disableWebPagePreview?: boolean;
+  /** Target forum topic (message_thread_id). Overrides the configured default. */
+  readonly messageThreadId?: number;
 }
 
 /** A validated notification. Existence of this type implies its invariants hold. */
@@ -31,6 +33,8 @@ export interface Notification {
   readonly parseMode?: ParseMode;
   readonly disableNotification?: boolean;
   readonly disableWebPagePreview?: boolean;
+  /** Target forum topic (message_thread_id). Overrides the configured default. */
+  readonly messageThreadId?: number;
 }
 
 /** Thrown when a command violates a domain invariant. Always a permanent error. */
@@ -56,6 +60,12 @@ export function createNotification(command: NotificationCommand): Notification {
       `text length ${text.length} exceeds the maximum of ${MAX_TEXT_LENGTH}`,
     );
   }
+  if (
+    command.messageThreadId !== undefined &&
+    (!Number.isInteger(command.messageThreadId) || command.messageThreadId <= 0)
+  ) {
+    throw new NotificationValidationError('messageThreadId must be a positive integer');
+  }
 
   return {
     text,
@@ -65,6 +75,9 @@ export function createNotification(command: NotificationCommand): Notification {
       : {}),
     ...(command.disableWebPagePreview !== undefined
       ? { disableWebPagePreview: command.disableWebPagePreview }
+      : {}),
+    ...(command.messageThreadId !== undefined
+      ? { messageThreadId: command.messageThreadId }
       : {}),
   };
 }

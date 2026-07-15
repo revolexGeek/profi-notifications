@@ -14,6 +14,7 @@ describe('parseNotificationMessage', () => {
       parseMode: 'MarkdownV2',
       disableNotification: true,
       disableWebPagePreview: false,
+      messageThreadId: 2,
     });
 
     expect(result.ok).toBe(true);
@@ -23,8 +24,17 @@ describe('parseNotificationMessage', () => {
         parseMode: 'MarkdownV2',
         disableNotification: true,
         disableWebPagePreview: false,
+        messageThreadId: 2,
       });
     }
+  });
+
+  it('rejects a non-positive messageThreadId', () => {
+    expect(parseNotificationMessage({ text: 'hi', messageThreadId: 0 }).ok).toBe(false);
+    expect(parseNotificationMessage({ text: 'hi', messageThreadId: -1 }).ok).toBe(false);
+    const result = parseNotificationMessage({ text: 'hi', messageThreadId: 'two' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain('messageThreadId');
   });
 
   it('parses a JSON string body', () => {
