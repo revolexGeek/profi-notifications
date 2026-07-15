@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "auth-worker/internal/gen/auth/v1;authv1";
+
+// CookieService exposes the freshest profi.ru authentication cookies so other
+// services can perform authenticated requests without owning the refresh logic.
+service CookieService {
+  // GetCookies returns the current cookie jar together with a ready-to-use
+  // Cookie header and the authentication status.
+  rpc GetCookies(GetCookiesRequest) returns (GetCookiesResponse);
+}
+
+// Cookie mirrors a single authentication cookie.
+message Cookie {
+  string name = 1;
+  string value = 2;
+  string domain = 3;
+  string path = 4;
+  bool secure = 5;
+  bool http_only = 6;
+  bool host_only = 7;
+  bool session = 8;
+  string same_site = 9;
+  // expires_at is the cookie's own expiry as a unix timestamp in seconds;
+  // 0 means the cookie has no persistent expiry.
+  int64 expires_at = 10;
+}
+
+message GetCookiesRequest {}
+
+message GetCookiesResponse {
+  // cookies is the full jar in structured form.
+  repeated Cookie cookies = 1;
+  // cookie_header is the cookies rendered as an HTTP "Cookie" header value
+  // ("name=value; name2=value2"), ready to attach to outgoing requests.
+  string cookie_header = 2;
+  // status reflects the authentication state: "ok" when a live token exists,
+  // otherwise "requires_login".
+  string status = 3;
+  // token_ttl is the remaining lifetime of the freshest token, in seconds.
+  // Only meaningful when has_token is true.
+  int64 token_ttl = 4;
+  // has_token indicates whether a readable JWT token cookie is present.
+  bool has_token = 5;
+}
