@@ -1,0 +1,33 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: notifications-rabbitmq
+    ports:
+      - "5672:5672" # AMQP
+      - "15672:15672" # management UI (guest/guest)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  notifications:
+    build: .
+    container_name: notifications-service
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set TELEGRAM_BOT_TOKEN in your shell or .env}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?set TELEGRAM_CHAT_ID in your shell or .env}
+      HTTP_PORT: "3000"
+      # A short retry delay is handy for local experimentation.
+      NOTIFY_RETRY_DELAY_MS: "10000"
+      LOG_LEVEL: info
+    ports:
+      - "3000:3000" # health / readiness / metrics
+    restart: unless-stopped
