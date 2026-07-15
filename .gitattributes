@@ -1,0 +1,49 @@
+* text=auto eol=lf
+*.py      text eol=lf diff=python
+*.pyi     text eol=lf diff=python
+*.pyx     text eol=lf diff=python
+*.toml    text eol=lf
+*.cfg     text eol=lf
+*.ini     text eol=lf
+*.json    text eol=lf
+*.jsonc   text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+*.csv     text eol=lf
+*.sql     text eol=lf
+*.env     text eol=lf
+*.sh      text eol=lf
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+*.ps1     text eol=crlf
+*.psm1    text eol=crlf
+*.psd1    text eol=crlf
+uv.lock          text eol=lf linguist-generated=true -diff
+skills-lock.json text eol=lf linguist-generated=true -diff
+poetry.lock      text eol=lf linguist-generated=true -diff
+*.lock           text eol=lf
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.webp    binary
+*.svg     text eol=lf
+*.pdf     binary
+*.zip     binary
+*.gz      binary
+*.tar     binary
+*.7z      binary
+*.xlsx    binary
+*.xls     binary
+*.db      binary
+*.sqlite  binary
+*.sqlite3 binary
+*.pyc     binary
+*.pyd     binary
+*.so      binary
+*.dll     binary
+*.ipynb   text eol=lf
+parser/data/** linguist-generated=true

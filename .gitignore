@@ -1,0 +1,7 @@
+.env*
+!.env.example
+skills-lock.json
+.agents
+AGENTS.md
+CLAUDE.md
+.ruff_cache
