@@ -67,17 +67,21 @@ app/
 
 ## Конфигурация
 
+Настройки сгруппированы по внешним системам, каждая группа читает свой префикс
+`GROUP__` (вложенный `Settings`, `get_settings()`).
+
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
-| `LLM_AMQP_URL` | `amqp://guest:guest@localhost:5672/` | подключение к RabbitMQ |
-| `LLM_INPUT_QUEUE` | `parse.results` | входная очередь |
-| `LLM_NOTIFY_EXCHANGE` / `LLM_NOTIFY_ROUTING_KEY` | `notifications` / `notify` | выход |
-| `LLM_PREFETCH` | `1` | prefetch (троттлинг батчей) |
-| `GROQ_API_KEY` | — (обязательно) | ключ Groq |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | модель (с function calling) |
-| `LLM_TEMPERATURE` / `LLM_TIMEOUT` | `0` / `30` | параметры вызова |
-| `SUITABILITY_THRESHOLD` | `60` | порог решения |
-| `HTTP_HOST` / `HTTP_PORT` | `0.0.0.0` / `8000` | health-эндпоинты |
+| `RABBITMQ__HOST` / `RABBITMQ__PORT` | `localhost` / `5672` | адрес RabbitMQ |
+| `RABBITMQ__USERNAME` / `RABBITMQ__PASSWORD` | `guest` / `guest` | доступ к RabbitMQ |
+| `RABBITMQ__VHOST` | `/` | virtual host |
+| `MESSAGING__INPUT_QUEUE` | `parse.results` | входная очередь (→ `assess.requests` при «мозге») |
+| `MESSAGING__NOTIFY_EXCHANGE` / `MESSAGING__NOTIFY_ROUTING_KEY` | `notifications` / `notify` | выход |
+| `MESSAGING__PREFETCH` | `1` | prefetch (троттлинг батчей) |
+| `GROQ__API_KEY` | — (обязательно) | ключ Groq |
+| `GROQ__MODEL` | `llama-3.3-70b-versatile` | модель (с function calling) |
+| `GROQ__TEMPERATURE` / `GROQ__TIMEOUT` | `0` / `30` | параметры вызова |
+| `ASSESSMENT__SUITABILITY_THRESHOLD` | `60` | порог решения |
 | `LOG_LEVEL` | `info` | уровень логов |
 
 Пример — в [.env.example](.env.example). В общем стеке значения берутся из
@@ -100,7 +104,7 @@ Health: `GET http://127.0.0.1:8000/ready` (и `/health`).
 Нужен запущенный RabbitMQ (`docker compose up -d rabbitmq`):
 
 ```bash
-GROQ_API_KEY=... uv run uvicorn app.asgi:app --host 0.0.0.0 --port 8000
+GROQ__API_KEY=... uv run uvicorn app.asgi:app --host 0.0.0.0 --port 8000
 ```
 
 ## Тесты
@@ -121,7 +125,7 @@ Groq — через фейковый structured-раннабл (без сети)
 кладёт только новые в отдельную очередь, переключение — одной переменной:
 
 ```
-LLM_INPUT_QUEUE=assess.requests
+MESSAGING__INPUT_QUEUE=assess.requests
 ```
 
 Код менять не нужно — сервис уже stateless.

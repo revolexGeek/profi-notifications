@@ -8,8 +8,8 @@ from app.main import build_app
 
 
 def test_build_app_wires_service(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("GROQ__API_KEY", "test-key")
 
-    app = build_app(Settings(_env_file=None))
+    app = build_app(Settings())
 
     assert isinstance(app, AsgiFastStream)

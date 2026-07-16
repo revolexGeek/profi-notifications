@@ -146,7 +146,9 @@ services:
       - .env
 
     environment:
-      LLM_AMQP_URL: "amqp://${RABBITMQ_USER:-profi}:${RABBITMQ_PASS:-profi}@rabbitmq:5672/%2f"
+      RABBITMQ__HOST: rabbitmq
+      RABBITMQ__USERNAME: ${RABBITMQ_USER:-profi}
+      RABBITMQ__PASSWORD: ${RABBITMQ_PASS:-profi}
 
     depends_on:
       rabbitmq:
