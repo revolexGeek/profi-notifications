@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Тесты и инструменты
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Локальные настройки (пример коммитим, реальный — нет)
+.env
+!.env.example
+
+# Локальный профиль исполнителя (если вынесен из кода)
+profile.local.*

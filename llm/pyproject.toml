@@ -1,0 +1,65 @@
+[project]
+name = "llm"
+version = "0.1.0"
+description = "Stateless LLM-оценщик заявок Profi.ru: parse.results → Groq → notifications"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "faststream[rabbit]>=0.7.2",
+    "groq>=0.37.1",
+    "langchain-groq>=1.1.3",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
+    "uvicorn>=0.51.0",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=2.3.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.22",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/asgi.py"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.deptry.per_rule_ignores]
+# uvicorn запускается как ASGI-сервер из CMD, в коде не импортируется
+DEP002 = ["uvicorn"]
+
+[tool.vulture]
+# pydantic-поля/model_config и декораторные хендлеры FastStream vulture видит как
+# «unused» на 60% — это ложные срабатывания; оставляем находки высокой уверенности
+min_confidence = 80
+ignore_names = ["model_config"]
+ignore_decorators = ["@broker.subscriber", "@app.after_startup"]
