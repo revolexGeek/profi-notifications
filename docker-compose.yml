@@ -134,6 +134,46 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  llm:
+    build:
+      context: ./llm
+      dockerfile: Dockerfile
+    image: profi-llm:0.1.0
+    container_name: profi-llm
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      LLM_AMQP_URL: "amqp://${RABBITMQ_USER:-profi}:${RABBITMQ_PASS:-profi}@rabbitmq:5672/%2f"
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 512M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   profi-net:
     driver: bridge
