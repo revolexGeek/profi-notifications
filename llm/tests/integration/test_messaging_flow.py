@@ -1,5 +1,7 @@
 """Интеграционные тесты messaging через in-memory TestRabbitBroker."""
 
+from typing import Any, cast
+
 from faststream.rabbit import RabbitBroker, TestRabbitBroker
 
 from app.domain.listing import Listing
@@ -79,6 +81,7 @@ async def test_publisher_sends_camel_case_to_notifications() -> None:
 
     async with TestRabbitBroker(broker):
         await adapter.publish(NotificationCommand(text="hi", parse_mode="HTML"))
-        notify_publisher.mock.assert_called_once_with(
+        # .mock навешивает TestRabbitBroker в рантайме; у типа PublisherTransport его нет
+        cast(Any, notify_publisher).mock.assert_called_once_with(
             {"text": "hi", "parseMode": "HTML", "disableWebPagePreview": True}
         )

@@ -10,6 +10,7 @@ from app.domain.assessment import Assessment
 from app.domain.listing import Listing
 from app.domain.profile import ContractorProfile
 from app.infrastructure.llm.groq_assessor import GroqAssessor
+from app.infrastructure.llm.prompts import Message
 from app.infrastructure.llm.schemas import LlmAssessmentSchema
 
 PROFILE = ContractorProfile(
@@ -21,15 +22,18 @@ _REQUEST = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completion
 
 
 class FakeStructured:
-    def __init__(self, *, result: object = None, error: Exception | None = None) -> None:
+    def __init__(
+        self, *, result: LlmAssessmentSchema | None = None, error: Exception | None = None
+    ) -> None:
         self.result = result
         self.error = error
-        self.last_input: object = None
+        self.last_input: list[Message] | None = None
 
-    async def ainvoke(self, model_input: object) -> object:
+    async def ainvoke(self, model_input: list[Message]) -> LlmAssessmentSchema:
         self.last_input = model_input
         if self.error is not None:
             raise self.error
+        assert self.result is not None
         return self.result
 
 
