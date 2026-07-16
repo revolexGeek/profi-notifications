@@ -90,6 +90,7 @@ func (uc *RefreshAuth) Execute() (RefreshResult, error) {
 type tokenSnapshot struct {
 	ttl     int64
 	hasTTL  bool
+	touched bool
 	tokens  map[string]domain.TokenInfo
 	details []domain.TokenDetail
 }
@@ -108,14 +109,19 @@ func (uc *RefreshAuth) snapshot(jar *domain.Jar) tokenSnapshot {
 	return tokenSnapshot{
 		ttl:     ttl,
 		hasTTL:  hasTTL,
+		touched: jar.AllTouched(),
 		tokens:  jar.LatestTokens(),
 		details: jar.TokenDetails(now),
 	}
 }
 
 func (uc *RefreshAuth) refreshIfNeeded(jar *domain.Jar, before tokenSnapshot) (bool, error) {
+	// TTL-driven only: profi.ru mutex-locks renew/touch (HTTP 423) when they are
+	// called too often, so refresh on the gentle expiry cadence rather than
+	// forcing on touched-status (which storms the lock when a touch transiently
+	// fails). touched is kept for observability.
 	if !domain.NeedsRefresh(before.ttl, before.hasTTL, uc.refreshBeforeSecs) {
-		uc.log.Info("token still valid, skipping renew", "ttl", before.ttl)
+		uc.log.Info("token still valid, skipping renew", "ttl", before.ttl, "touched", before.touched)
 		return false, nil
 	}
 

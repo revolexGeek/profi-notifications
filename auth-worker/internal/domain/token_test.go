@@ -167,3 +167,32 @@ func TestTokenDetailsPopulatesExpiry(t *testing.T) {
 		t.Fatal("cookie expires should be set")
 	}
 }
+
+func TestTokenStatusReadsClaim(t *testing.T) {
+	status, ok := TokenStatus(makeJWTStatus(1_700_000_000, "renew"))
+	if !ok || status != "renew" {
+		t.Fatalf("status = %q ok = %t, want renew/true", status, ok)
+	}
+}
+
+func TestAllTouched(t *testing.T) {
+	const now = int64(1_000_000)
+
+	touched := NewJar([]Cookie{tokenCookie("/", now+500)})
+	if !touched.AllTouched() {
+		t.Error("jar with a touched token should report AllTouched")
+	}
+
+	renew := NewJar([]Cookie{{
+		Name: "prfr_bo_tkn", Domain: ".profi.ru", Path: "/",
+		Value: makeJWTStatus(now+500, "renew"),
+	}})
+	if renew.AllTouched() {
+		t.Error("jar with a renew-status token must not report AllTouched")
+	}
+
+	empty := NewJar([]Cookie{{Name: "sid", Value: "x", Domain: ".profi.ru", Path: "/"}})
+	if empty.AllTouched() {
+		t.Error("jar without token cookies must not report AllTouched")
+	}
+}

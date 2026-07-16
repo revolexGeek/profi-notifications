@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sort"
 	"time"
 
 	"auth-worker/internal/domain"
@@ -35,15 +36,16 @@ var (
 
 // Renewer performs the renew request against the configured endpoint.
 type Renewer struct {
-	client  *http.Client
-	url     string
-	headers map[string]string
-	log     *slog.Logger
+	client   *http.Client
+	renewURL string
+	touchURL string
+	headers  map[string]string
+	log      *slog.Logger
 }
 
 // New creates a Renewer that never follows redirects, so a redirect can be
 // interpreted as an expired session rather than silently chased.
-func New(url string, headers map[string]string, timeout time.Duration, log *slog.Logger) *Renewer {
+func New(renewURL, touchURL string, headers map[string]string, timeout time.Duration, log *slog.Logger) *Renewer {
 	client := &http.Client{
 		Timeout: timeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -51,33 +53,58 @@ func New(url string, headers map[string]string, timeout time.Duration, log *slog
 		},
 	}
 
-	return &Renewer{client: client, url: url, headers: headers, log: log}
+	return &Renewer{client: client, renewURL: renewURL, touchURL: touchURL, headers: headers, log: log}
 }
 
-// Renew calls the renew endpoint with the jar's cookies, merges any refreshed
-// cookies back into the jar, and classifies the outcome.
+// Renew refreshes the session in two steps, mirroring the profi.ru frontend:
+// the renew call issues a fresh token with status "renew", and the touch call
+// upgrades it to "touched" — the state the board requires.
 func (r *Renewer) Renew(jar *domain.Jar) (usecase.RenewOutcome, error) {
 	r.logAuthCookies(jar, "before renew")
 
-	response, err := r.send(jar)
+	renewNames, err := r.step(jar, r.renewURL, "renew")
 	if err != nil {
 		return usecase.RenewOutcome{}, err
+	}
+
+	touchNames := r.tryTouch(jar)
+
+	r.logAuthCookies(jar, "after renew")
+	return usecase.RenewOutcome{ResponseCookieNames: mergeNames(renewNames, touchNames)}, nil
+}
+
+// tryTouch upgrades the freshly renewed token to "touched" status — the state
+// the backoffice board requires. touch only succeeds while the login session
+// is still valid, so a failure here signals a stale session rather than a
+// broken renewal. The renewed token is already saved, so the failure is logged
+// and swallowed to keep the loop alive until the session is refreshed.
+func (r *Renewer) tryTouch(jar *domain.Jar) []string {
+	names, err := r.step(jar, r.touchURL, "touch")
+	if err != nil {
+		r.log.Warn("touch step failed, keeping renewed token", "error", err)
+		return nil
+	}
+	return names
+}
+
+func (r *Renewer) step(jar *domain.Jar, url, label string) ([]string, error) {
+	response, err := r.send(jar, url)
+	if err != nil {
+		return nil, err
 	}
 	defer response.Body.Close()
 
 	names := mergeResponseCookies(jar, response)
-	r.logResponse(response, names)
+	r.logResponse(label, response, names)
 
 	if err := classify(response); err != nil {
-		return usecase.RenewOutcome{}, err
+		return nil, err
 	}
-
-	r.logAuthCookies(jar, "after renew")
-	return usecase.RenewOutcome{ResponseCookieNames: names}, nil
+	return names, nil
 }
 
-func (r *Renewer) send(jar *domain.Jar) (*http.Response, error) {
-	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, r.url, nil)
+func (r *Renewer) send(jar *domain.Jar, url string) (*http.Response, error) {
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +120,22 @@ func (r *Renewer) send(jar *domain.Jar) (*http.Response, error) {
 	}
 
 	return response, nil
+}
+
+func mergeNames(first, second []string) []string {
+	seen := make(map[string]struct{})
+	var out []string
+	for _, group := range [][]string{first, second} {
+		for _, name := range group {
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // classify maps a completed response to a domain error, or nil on success.
@@ -135,8 +178,8 @@ func isTimeout(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded)
 }
 
-func (r *Renewer) logResponse(response *http.Response, cookieNames []string) {
-	r.log.Info("renew response",
+func (r *Renewer) logResponse(label string, response *http.Response, cookieNames []string) {
+	r.log.Info(label+" response",
 		"status", response.StatusCode,
 		"content_type", orDefault(response.Header.Get("Content-Type"), "unspecified"),
 		"response_cookies", cookieNames,
@@ -144,16 +187,15 @@ func (r *Renewer) logResponse(response *http.Response, cookieNames []string) {
 
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxBodyBytes))
 	if err != nil {
-		r.log.Warn("could not read renew response body", "error", err)
+		r.log.Warn("could not read response body", "error", err, "step", label)
 		return
 	}
 
 	preview := redactBody(string(body))
 	if preview == "" {
-		r.log.Info("renew response body empty")
 		return
 	}
-	r.log.Info("renew response body", "preview", preview)
+	r.log.Info(label+" response body", "preview", preview)
 }
 
 func (r *Renewer) logAuthCookies(jar *domain.Jar, label string) {

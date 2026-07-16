@@ -48,6 +48,7 @@ type TokenInfo struct {
 	Name        string
 	Expiration  int64
 	Fingerprint string
+	Status      string
 	Cookie      Cookie
 }
 
@@ -87,8 +88,26 @@ func DecodeJWTExp(token string) (int64, bool) {
 	return int64(*claims.Exp), true
 }
 
+// TokenStatusTouched is the JWT status the backoffice board requires. A freshly
+// renewed token has status "renew" and must be upgraded via a touch call.
+const TokenStatusTouched = "touched"
+
+// TokenStatus extracts the "status" claim from a JWT.
+func TokenStatus(token string) (string, bool) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", false
+	}
+	claims, ok := decodeJWTClaims(parts[1])
+	if !ok {
+		return "", false
+	}
+	return claims.Status, true
+}
+
 type jwtClaims struct {
-	Exp *float64 `json:"exp"`
+	Exp    *float64 `json:"exp"`
+	Status string   `json:"status"`
 }
 
 func decodeJWTClaims(segment string) (jwtClaims, bool) {
@@ -126,16 +145,33 @@ func (j *Jar) LatestTokens() map[string]TokenInfo {
 
 		current, exists := latest[cookie.Name]
 		if !exists || expiration > current.Expiration {
+			status, _ := TokenStatus(cookie.Value)
 			latest[cookie.Name] = TokenInfo{
 				Name:        cookie.Name,
 				Expiration:  expiration,
 				Fingerprint: Fingerprint(cookie.Value),
+				Status:      status,
 				Cookie:      cookie,
 			}
 		}
 	}
 
 	return latest
+}
+
+// AllTouched reports whether every freshest token cookie is in the "touched"
+// state the board requires. False when no readable token exists.
+func (j *Jar) AllTouched() bool {
+	latest := j.LatestTokens()
+	if len(latest) == 0 {
+		return false
+	}
+	for _, token := range latest {
+		if token.Status != TokenStatusTouched {
+			return false
+		}
+	}
+	return true
 }
 
 // TokenTTL returns the smallest remaining lifetime, in seconds, across the

@@ -26,7 +26,7 @@ func discardLogger() *slog.Logger {
 
 func newRenewer(t *testing.T, url string, timeout time.Duration) *Renewer {
 	t.Helper()
-	return New(url, map[string]string{"x-app-id": "BO"}, timeout, discardLogger())
+	return New(url, url, map[string]string{"x-app-id": "BO"}, timeout, discardLogger())
 }
 
 func jarWithToken(exp int64) *domain.Jar {
@@ -143,4 +143,36 @@ func statusServer(t *testing.T, code int, headers map[string]string) *httptest.S
 		}
 		w.WriteHeader(code)
 	}))
+}
+
+func TestRenewCallsRenewThenTouch(t *testing.T) {
+	renewToken := makeJWT(time.Now().Unix() + 3600)
+	touchToken := makeJWT(time.Now().Unix() + 7200)
+	var hits []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/auth/token/renew", func(w http.ResponseWriter, _ *http.Request) {
+		hits = append(hits, "renew")
+		http.SetCookie(w, &http.Cookie{Name: "prfr_bo_tkn", Value: renewToken, Path: "/", Domain: ".profi.ru"})
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/auth/token/touch", func(w http.ResponseWriter, _ *http.Request) {
+		hits = append(hits, "touch")
+		http.SetCookie(w, &http.Cookie{Name: "prfr_bo_tkn", Value: touchToken, Path: "/", Domain: ".profi.ru"})
+		w.WriteHeader(http.StatusOK)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	renewer := New(server.URL+"/auth/token/renew", server.URL+"/auth/token/touch", map[string]string{"x-app-id": "BO"}, 5*time.Second, discardLogger())
+	jar := jarWithToken(time.Now().Unix() + 60)
+
+	if _, err := renewer.Renew(jar); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(hits) != 2 || hits[0] != "renew" || hits[1] != "touch" {
+		t.Fatalf("call order = %v, want [renew touch]", hits)
+	}
+	if got := jar.LatestTokens()["prfr_bo_tkn"].Cookie.Value; got != touchToken {
+		t.Error("jar should end with the touched token")
+	}
 }

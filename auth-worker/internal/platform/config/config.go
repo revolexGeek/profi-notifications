@@ -17,6 +17,7 @@ type Config struct {
 	StatusFile string
 
 	RenewURL  string
+	TouchURL  string
 	UserAgent string
 	LogLevel  string
 	GRPCAddr  string
@@ -43,7 +44,8 @@ func Load() Config {
 		LockFile:   env("PROFI_COOKIE_LOCK", "./data/cookies.lock"),
 		StatusFile: env("PROFI_AUTH_STATUS", "./data/auth-status.json"),
 
-		RenewURL:  env("PROFI_RENEW_URL", "https://profi.ru/auth/token/renew/?login"),
+		RenewURL:  env("PROFI_RENEW_URL", "https://profi.ru/auth/token/renew"),
+		TouchURL:  env("PROFI_TOUCH_URL", "https://profi.ru/auth/token/touch"),
 		UserAgent: env("PROFI_USER_AGENT", defaultUserAgent),
 		LogLevel:  env("LOG_LEVEL", "INFO"),
 		GRPCAddr:  env("PROFI_GRPC_ADDR", "127.0.0.1:50051"),
@@ -66,10 +68,11 @@ func (c Config) Headers() map[string]string {
 	return map[string]string{
 		"accept":                "*/*",
 		"accept-language":       "ru,en-US;q=0.9,en;q=0.8",
-		"referer":               "https://profi.ru/backoffice/",
+		"referer":               "https://profi.ru/backoffice/n.php",
 		"user-agent":            c.UserAgent,
 		"x-app-id":              "BO",
 		"x-new-auth-compatible": "1",
+		"x-requested-with":      "XMLHttpRequest",
 		"x-warp-ui-app":         "WEBBO",
 		"x-warp-ui-type":        "WEB",
 		"x-warp-ui-ver":         "1.0",

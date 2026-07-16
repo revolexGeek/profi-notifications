@@ -157,3 +157,26 @@ func assertRenewFailed(t *testing.T, err error) {
 		t.Fatalf("error = %v, want RenewFailedError", err)
 	}
 }
+
+func TestExecuteSkipsFreshTokenRegardlessOfTouchedStatus(t *testing.T) {
+	renewStatus := domain.Cookie{
+		Name:   "prfr_bo_tkn",
+		Value:  makeJWTStatus(testNow+3600, "renew"),
+		Domain: ".profi.ru",
+		Path:   "/",
+	}
+	store := &fakeStore{jar: domain.NewJar([]domain.Cookie{renewStatus}), url: "https://profi.ru"}
+	renewer := &fakeRenewer{}
+
+	result, err := newInteractor(store, renewer, &fakeLocker{}).Execute()
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if renewer.calls != 0 {
+		t.Errorf("renew called %d times, want 0 (refresh is TTL-driven; a healthy TTL is not renewed to avoid the profi 423 mutex storm)", renewer.calls)
+	}
+	if result.Refreshed {
+		t.Error("fresh token should not be refreshed")
+	}
+}
