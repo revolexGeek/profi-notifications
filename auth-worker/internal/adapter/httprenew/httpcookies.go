@@ -14,11 +14,22 @@ const (
 	defaultPath   = "/"
 )
 
-// cookieHeader renders the jar's cookies as a single Cookie request header.
+// cookieHeader renders the jar's cookies as a single Cookie header, one cookie
+// per name (last value wins), mirroring how a browser sends exactly one cookie
+// per name on a request even when the jar holds duplicates across domains.
 func cookieHeader(jar *domain.Jar) string {
-	pairs := make([]string, 0, jar.Len())
+	order := make([]string, 0, jar.Len())
+	values := make(map[string]string, jar.Len())
 	for _, cookie := range jar.Cookies() {
-		pairs = append(pairs, cookie.Name+"="+cookie.Value)
+		if _, seen := values[cookie.Name]; !seen {
+			order = append(order, cookie.Name)
+		}
+		values[cookie.Name] = cookie.Value
+	}
+
+	pairs := make([]string, 0, len(order))
+	for _, name := range order {
+		pairs = append(pairs, name+"="+values[name])
 	}
 	return strings.Join(pairs, "; ")
 }

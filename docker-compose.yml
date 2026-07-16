@@ -1,0 +1,142 @@
+name: profi-notifications
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: profi-rabbitmq
+    hostname: profi-rabbitmq
+    restart: unless-stopped
+
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-profi}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-profi}
+
+    ports:
+      - "127.0.0.1:5672:5672"   # AMQP
+      - "127.0.0.1:15672:15672" # management UI
+
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  auth-worker:
+    build:
+      context: ./auth-worker
+      dockerfile: Dockerfile
+    image: profi-auth-worker:0.1.0
+    container_name: profi-auth-worker
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:50051:50051"
+
+    environment:
+      PROFI_GRPC_ADDR: "0.0.0.0:50051" # required: 127.0.0.1 is unreachable from outside the container
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./auth-worker/data:/app/data
+
+    healthcheck:
+      test: ["CMD", "/app/auth-worker", "healthcheck"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  parser-worker:
+    build:
+      context: ./parser-worker
+      dockerfile: Dockerfile
+    image: profi-parser-worker:0.1.0
+    container_name: profi-parser-worker
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      PARSER_AMQP_URL: "amqp://${RABBITMQ_USER:-profi}:${RABBITMQ_PASS:-profi}@rabbitmq:5672/%2f"
+      PARSER_AUTH_GRPC_ADDR: "http://auth-worker:50051"
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      auth-worker:
+        condition: service_healthy
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/health && [ $(( $(date +%s) - $(stat -c %Y /tmp/health) )) -lt 40 ]"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 256M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  profi-net:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:

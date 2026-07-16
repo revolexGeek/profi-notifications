@@ -73,7 +73,7 @@ func buildWorker(
 	locker *filelock.Locker,
 	systemClock clock.System,
 ) *usecase.Worker {
-	renewer := httprenew.New(cfg.RenewURL, cfg.Headers(), cfg.RequestTimeout, logger)
+	renewer := httprenew.New(cfg.RenewURL, cfg.TouchURL, cfg.Headers(), cfg.RequestTimeout, logger)
 	reporter := statusfile.New(cfg.StatusFile)
 
 	refresh := usecase.NewRefreshAuth(store, renewer, locker, systemClock, logger, cfg.RefreshBeforeSeconds)

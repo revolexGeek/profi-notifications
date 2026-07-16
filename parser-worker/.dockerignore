@@ -1,0 +1,13 @@
+**/target
+examples
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.md
+.env
+.env.*
+*.pem
+*.key
+.idea
+.vscode

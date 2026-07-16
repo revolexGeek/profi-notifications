@@ -1,0 +1,35 @@
+[package]
+name = "parser-worker"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+
+[profile.release]
+strip = "symbols"
+
+[dependencies]
+anyhow = "1.0.103"
+async-trait = "0.1.89"
+futures = "0.3.32"
+lapin = "4.10.0"
+prost = "0.14.4"
+reqwest = { version = "0.13.4", features = ["json"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+thiserror = "2.0.18"
+tokio = { version = "1.52.3", features = ["full"] }
+tonic = "0.14.6"
+tonic-prost = "0.14.6"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[dev-dependencies]
+mockall = "0.15.0"
+rstest = "0.26.1"
+tokio-stream = { version = "0.1.18", features = ["net"] }
+tokio-test = "0.4.5"
+wiremock = "0.6.5"
+
+[build-dependencies]
+protoc-bin-vendored = "3.2.0"
+tonic-prost-build = "0.14.6"

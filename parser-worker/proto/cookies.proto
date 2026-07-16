@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package auth.v1;
+
+service CookieService {
+  rpc GetCookies(GetCookiesRequest) returns (GetCookiesResponse);
+}
+
+message Cookie {
+  string name = 1;
+  string value = 2;
+  string domain = 3;
+  string path = 4;
+  bool secure = 5;
+  bool http_only = 6;
+  bool host_only = 7;
+  bool session = 8;
+  string same_site = 9;
+  int64 expires_at = 10;
+}
+
+message GetCookiesRequest {}
+
+message GetCookiesResponse {
+  repeated Cookie cookies = 1;
+  string cookie_header = 2;
+  string status = 3;
+  int64 token_ttl = 4;
+  bool has_token = 5;
+}
