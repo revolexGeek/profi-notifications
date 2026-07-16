@@ -1,13 +1,15 @@
 """Wire-схемы очередей.
 
-Вход `parse.results` (`ParseResultMessage`) — точное зеркало serde-JSON от
-`parser-worker` (snake_case, батч заказов). Выход `NotificationMessage` —
-camelCase-контракт, который потребляет TS-сервис notifications.
+Вход `assess.requests` (`ParseResultMessage`) — та же snake_case-форма, что шлёт
+`parser-worker` (батч заказов); её проксирует «мозг». Выход `assess.results`
+(`AssessmentResultMessage`) — вердикт llm с готовым Telegram-уведомлением внутри
+(camelCase, контракт TS-сервиса notifications) — его потребляет «мозг».
 """
 
 from pydantic import BaseModel, Field
 
 from app.domain.notification import NotificationCommand, ParseMode
+from app.domain.result import AssessmentResult
 
 
 class Price(BaseModel):
@@ -86,4 +88,18 @@ class NotificationMessage(BaseModel):
             text=command.text,
             parse_mode=command.parse_mode,
             disable_web_page_preview=command.disable_web_page_preview,
+        )
+
+
+class AssessmentResultMessage(BaseModel):
+    order_id: str
+    suitability_score: int
+    notification: NotificationMessage
+
+    @classmethod
+    def from_result(cls, result: AssessmentResult) -> "AssessmentResultMessage":
+        return cls(
+            order_id=result.order_id,
+            suitability_score=result.suitability_score,
+            notification=NotificationMessage.from_command(result.notification),
         )

@@ -6,11 +6,11 @@ wire-модели делает подписчик). Обработка best-effo
 """
 
 from app.application.errors import AssessmentError
-from app.application.ports import LlmAssessor, Logger, NotificationPublisher
+from app.application.ports import LlmAssessor, Logger, ResultPublisher
 from app.domain.decision import decide
 from app.domain.listing import Listing
-from app.domain.notification import build_notification
 from app.domain.profile import ContractorProfile
+from app.domain.result import build_result
 
 
 class AssessOrders:
@@ -18,7 +18,7 @@ class AssessOrders:
         self,
         *,
         assessor: LlmAssessor,
-        publisher: NotificationPublisher,
+        publisher: ResultPublisher,
         profile: ContractorProfile,
         threshold: int,
         logger: Logger,
@@ -38,9 +38,9 @@ class AssessOrders:
             assessment = await self._assessor.assess(listing, self._profile)
             decision = decide(assessment, self._threshold)
             if decision.notify:
-                await self._publisher.publish(build_notification(listing, assessment))
+                await self._publisher.publish(build_result(listing, assessment))
                 self._logger.info(
-                    "order_notified",
+                    "result_published",
                     order_id=listing.id,
                     score=assessment.suitability_score,
                 )

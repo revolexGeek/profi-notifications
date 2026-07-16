@@ -6,11 +6,9 @@ from faststream.rabbit import RabbitBroker, TestRabbitBroker
 
 from app.domain.listing import Listing
 from app.domain.notification import NotificationCommand
-from app.infrastructure.messaging.broker import (
-    build_input_queue,
-    build_notification_publisher,
-)
-from app.infrastructure.messaging.publisher import RabbitNotificationPublisher
+from app.domain.result import AssessmentResult
+from app.infrastructure.messaging.broker import build_input_queue, build_result_publisher
+from app.infrastructure.messaging.publisher import RabbitResultPublisher
 from app.infrastructure.messaging.subscriber import register_orders_subscriber
 
 _PARSE_RESULT = {
@@ -64,24 +62,37 @@ async def test_subscriber_maps_orders_and_delegates() -> None:
         seen.extend(listings)
 
     broker = RabbitBroker()
-    register_orders_subscriber(broker, build_input_queue("parse.results"), handle)
+    register_orders_subscriber(broker, build_input_queue("assess.requests"), handle)
 
     async with TestRabbitBroker(broker) as br:
-        await br.publish(_PARSE_RESULT, queue="parse.results")
+        await br.publish(_PARSE_RESULT, queue="assess.requests")
 
     assert [listing.id for listing in seen] == ["1", "2"]
     assert seen[0].is_remote is True
     assert seen[0].budget is not None
 
 
-async def test_publisher_sends_camel_case_to_notifications() -> None:
+async def test_publisher_sends_result_to_assess_results() -> None:
     broker = RabbitBroker()
-    notify_publisher = build_notification_publisher(broker)
-    adapter = RabbitNotificationPublisher(notify_publisher)
+    result_publisher = build_result_publisher(broker, queue="assess.results")
+    adapter = RabbitResultPublisher(result_publisher)
+    result = AssessmentResult(
+        order_id="42",
+        suitability_score=88,
+        notification=NotificationCommand(text="hi", parse_mode="HTML"),
+    )
 
     async with TestRabbitBroker(broker):
-        await adapter.publish(NotificationCommand(text="hi", parse_mode="HTML"))
+        await adapter.publish(result)
         # .mock навешивает TestRabbitBroker в рантайме; у типа PublisherTransport его нет
-        cast(Any, notify_publisher).mock.assert_called_once_with(
-            {"text": "hi", "parseMode": "HTML", "disableWebPagePreview": True}
+        cast(Any, result_publisher).mock.assert_called_once_with(
+            {
+                "order_id": "42",
+                "suitability_score": 88,
+                "notification": {
+                    "text": "hi",
+                    "parseMode": "HTML",
+                    "disableWebPagePreview": True,
+                },
+            }
         )

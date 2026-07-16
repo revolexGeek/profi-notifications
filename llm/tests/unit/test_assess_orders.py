@@ -34,7 +34,9 @@ class TestAssessOrders:
         await _use_case(assessor, publisher, logger).handle([_listing("1")])
 
         assert len(publisher.published) == 1
-        assert logger.events_of("order_notified")
+        assert publisher.published[0].order_id == "1"
+        assert publisher.published[0].suitability_score == 90
+        assert logger.events_of("result_published")
 
     async def test_does_not_publish_when_not_suitable(self) -> None:
         assessor = FakeAssessor({"1": Assessment(summary="s", suitability_score=10)})
