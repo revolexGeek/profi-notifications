@@ -1,9 +1,9 @@
-"""Публикация уведомления в очередь notifications (реализация NotificationPublisher)."""
+"""Публикация результата оценки в очередь assess.results (реализация ResultPublisher)."""
 
 from typing import Any, Protocol
 
-from app.domain.notification import NotificationCommand
-from app.infrastructure.messaging.schemas import NotificationMessage
+from app.domain.result import AssessmentResult
+from app.infrastructure.messaging.schemas import AssessmentResultMessage
 
 
 class PublisherTransport(Protocol):
@@ -12,10 +12,10 @@ class PublisherTransport(Protocol):
     async def publish(self, message: Any) -> Any: ...
 
 
-class RabbitNotificationPublisher:
+class RabbitResultPublisher:
     def __init__(self, publisher: PublisherTransport) -> None:
         self._publisher = publisher
 
-    async def publish(self, command: NotificationCommand) -> None:
-        message = NotificationMessage.from_command(command)
+    async def publish(self, result: AssessmentResult) -> None:
+        message = AssessmentResultMessage.from_result(result)
         await self._publisher.publish(message.model_dump(by_alias=True, exclude_none=True))

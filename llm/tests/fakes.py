@@ -2,8 +2,8 @@
 
 from app.domain.assessment import Assessment
 from app.domain.listing import Listing
-from app.domain.notification import NotificationCommand
 from app.domain.profile import ContractorProfile
+from app.domain.result import AssessmentResult
 
 
 class FakeAssessor:
@@ -24,12 +24,12 @@ class FakeAssessor:
 class FakePublisher:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
-        self.published: list[NotificationCommand] = []
+        self.published: list[AssessmentResult] = []
 
-    async def publish(self, command: NotificationCommand) -> None:
+    async def publish(self, result: AssessmentResult) -> None:
         if self.error is not None:
             raise self.error
-        self.published.append(command)
+        self.published.append(result)
 
 
 class FakeLogger:

@@ -8,16 +8,16 @@ from typing import Protocol
 
 from app.domain.assessment import Assessment
 from app.domain.listing import Listing
-from app.domain.notification import NotificationCommand
 from app.domain.profile import ContractorProfile
+from app.domain.result import AssessmentResult
 
 
 class LlmAssessor(Protocol):
     async def assess(self, listing: Listing, profile: ContractorProfile) -> Assessment: ...
 
 
-class NotificationPublisher(Protocol):
-    async def publish(self, command: NotificationCommand) -> None: ...
+class ResultPublisher(Protocol):
+    async def publish(self, result: AssessmentResult) -> None: ...
 
 
 class Logger(Protocol):

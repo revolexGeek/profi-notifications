@@ -1,62 +1,66 @@
 # llm
 
-Stateless-сервис: оценивает заявки с доски Profi.ru через LLM (Groq + LangChain),
-сопоставляет их с профилем исполнителя и подходящие отправляет в очередь
-`notifications` (оттуда TS-сервис шлёт их в Telegram).
+Stateless-сервис-оценщик: звено между сервисом-«мозгом» и оценкой заявок Profi.ru
+через LLM (Groq + LangChain). Читает заказы из очереди `assess.requests` (их шлёт
+«мозг», уже отдедупленные), оценивает соответствие профилю исполнителя и кладёт
+вердикт с готовым уведомлением в `assess.results`. Решение «слать в Telegram» и
+публикацию в `notifications` делает «мозг».
 
 ```
-[parser-worker] ─parse.results→ [ llm ] ─notify→ [notifications] → Telegram
-                                   │
-                              Groq (structured output)
+[мозг] ─assess.requests→ [ llm: оценка ] ─assess.results→ [мозг] ─notify→ [notifications] → Telegram
+                              │
+                         Groq (structured output)
 ```
-
 
 ## Что делает
 
-1. Читает батч заказов из очереди `parse.results` (публикует `parser-worker`).
+1. Читает батч заказов из очереди `assess.requests` (проксирует «мозг»; форма — та
+   же, что шлёт `parser-worker`).
 2. Для каждого заказа через Groq извлекает требования и оценивает соответствие
-   профилю исполнителя (0–100) + помечает неподдерживаемые навыки и нежелательные
-   типы заказов.
-3. Доменная политика решает: жёсткие фильтры (unsupported/rejected) важнее балла,
-   иначе сравнение с порогом `SUITABILITY_THRESHOLD`.
-4. Подходящие форматирует в HTML и публикует в обменник `notifications`.
+   профилю (0–100) + помечает неподдерживаемые навыки и нежелательные типы заказов.
+3. Доменная политика: жёсткие фильтры (unsupported/rejected) важнее балла, иначе
+   сравнение с порогом `SUITABILITY_THRESHOLD`.
+4. Для подходящих формирует готовое HTML-уведомление и публикует
+   `AssessmentResult` в `assess.results` — дальше решает «мозг».
 
 ## Поведение
 
-- **Stateless, без дедупа.** Один и тот же заказ приходит каждый опрос доски —
-  дедупликацию/новизну возьмёт будущий отдельный сервис («мозг»). Пока сервис
-  запущен сам по себе, он пересылает повторяющиеся заказы на каждом тике.
-- **Только подходящие.** Неподходящие логируются и не публикуются.
-- **Best-effort.** Сбой одного заказа (например, rate limit Groq) логируется и не
-  рушит батч — заказ вернётся со следующим опросом. Нераспарсиваемый конверт
-  уходит в `parse.results.dlq`. Retry-очереди нет: фид самоисцеляется.
+- **Stateless, без дедупа и без прямой связи с телега-сервисом.** Дедуп/новизну и
+  финальную отправку в `notifications` держит «мозг»; llm — чистый оценщик.
+- **Только подходящие** попадают в `assess.results`; неподходящие логируются.
+- **Best-effort.** Сбой одного заказа (напр. rate limit Groq) логируется и не рушит
+  батч. Нераспарсиваемый конверт уходит в `assess.requests.dlq`. Retry-очереди нет.
 
 ## Контракты
 
-### Вход — `parse.results` (`ParseResultMessage`)
+### Вход — `assess.requests` (`ParseResultMessage`)
 
-Публикуется `parser-worker` в default exchange (routing key = имя очереди),
-snake_case, батч заказов. Заказ: `id`, `title`, `description`, `price`
-(`{prefix, value, suffix}`), `geo`, `client.tags`, `score` (релевантность
-Profi.ru — не наша оценка) и др.
+Default exchange (routing key = имя очереди), snake_case, батч заказов. Заказ:
+`id`, `title`, `description`, `price` (`{prefix, value, suffix}`), `geo`,
+`client.tags`, `score` (релевантность Profi.ru — не наша оценка) и др.
 
-### Выход — `notifications` (`NotificationMessage`)
+### Выход — `assess.results` (`AssessmentResultMessage`)
 
-Durable direct обменник `notifications`, routing key `notify`, camelCase:
+Durable-очередь (persist). Вердикт с готовым Telegram-уведомлением внутри
+(вложенный объект — camelCase-контракт TS-сервиса `notifications`):
 
 ```jsonc
-{ "text": "…", "parseMode": "HTML", "disableWebPagePreview": true }
+{
+  "order_id": "91668753",
+  "suitability_score": 90,
+  "notification": { "text": "…", "parseMode": "HTML", "disableWebPagePreview": true }
+}
 ```
 
-`text` ≤ 4096: заголовок-ссылка (`https://profi.ru/backoffice/n.php?o=<id>`),
+`notification.text` ≤ 4096: заголовок-ссылка (`https://profi.ru/backoffice/n.php?o=<id>`),
 краткое описание от модели, бюджет (если есть), оценка соответствия.
 
 ## Архитектура (Clean Architecture)
 
 ```
 app/
-├── domain/            # заявка, профиль, оценка, решение, форматирование уведомления
-├── application/       # порты (LlmAssessor, NotificationPublisher, Logger) + сценарий
+├── domain/            # заявка, профиль, оценка, решение, уведомление, результат
+├── application/       # порты (LlmAssessor, ResultPublisher, Logger) + сценарий
 ├── infrastructure/    # config, llm (Groq), messaging (RabbitMQ), observability
 ├── main.py            # composition root (build_app)
 └── asgi.py            # точка входа: uvicorn app.asgi:app
@@ -75,8 +79,8 @@ app/
 | `RABBITMQ__HOST` / `RABBITMQ__PORT` | `localhost` / `5672` | адрес RabbitMQ |
 | `RABBITMQ__USERNAME` / `RABBITMQ__PASSWORD` | `guest` / `guest` | доступ к RabbitMQ |
 | `RABBITMQ__VHOST` | `/` | virtual host |
-| `MESSAGING__INPUT_QUEUE` | `parse.results` | входная очередь (→ `assess.requests` при «мозге») |
-| `MESSAGING__NOTIFY_EXCHANGE` / `MESSAGING__NOTIFY_ROUTING_KEY` | `notifications` / `notify` | выход |
+| `MESSAGING__INPUT_QUEUE` | `assess.requests` | вход (от «мозга») |
+| `MESSAGING__RESULT_QUEUE` | `assess.results` | выход (в «мозг») |
 | `MESSAGING__PREFETCH` | `1` | prefetch (троттлинг батчей) |
 | `GROQ__API_KEY` | — (обязательно) | ключ Groq |
 | `GROQ__MODEL` | `llama-3.3-70b-versatile` | модель (с function calling) |
@@ -91,13 +95,14 @@ app/
 
 ### В составе стека (рекомендуется)
 
-Из корня репозитория (нужен `GROQ_API_KEY` в `.env`):
+Из корня репозитория (нужен `GROQ__API_KEY` в `.env`):
 
 ```bash
 docker compose up -d llm
 ```
 
-Health: `GET http://127.0.0.1:8000/ready` (и `/health`).
+Health: `GET http://127.0.0.1:8000/ready` (и `/health`). Полезную работу сервис
+начнёт, когда «мозг» будет класть заказы в `assess.requests`.
 
 ### Локально
 
@@ -118,14 +123,3 @@ uv run mypy app                    # типы
 
 Messaging тестируется in-memory через `TestRabbitBroker` (реальный брокер не нужен),
 Groq — через фейковый structured-раннабл (без сети).
-
-## Подключение к «мозгу»
-
-Когда появится сервис-оркестратор («мозг»), который сам дедуплицирует заказы и
-кладёт только новые в отдельную очередь, переключение — одной переменной:
-
-```
-MESSAGING__INPUT_QUEUE=assess.requests
-```
-
-Код менять не нужно — сервис уже stateless.

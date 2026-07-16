@@ -19,9 +19,10 @@ from app.infrastructure.llm.schemas import LlmAssessmentSchema
 from app.infrastructure.messaging.broker import (
     build_dead_letter_queue,
     build_input_queue,
-    build_notification_publisher,
+    build_result_publisher,
+    build_result_queue,
 )
-from app.infrastructure.messaging.publisher import RabbitNotificationPublisher
+from app.infrastructure.messaging.publisher import RabbitResultPublisher
 from app.infrastructure.messaging.subscriber import register_orders_subscriber
 from app.infrastructure.observability.logging import JsonLogger
 
@@ -45,14 +46,10 @@ def build_app(settings: Settings) -> AsgiFastStream:
         settings.rabbitmq.url,
         default_channel=Channel(prefetch_count=settings.messaging.prefetch),
     )
-    publisher = build_notification_publisher(
-        broker,
-        exchange=settings.messaging.notify_exchange,
-        routing_key=settings.messaging.notify_routing_key,
-    )
+    publisher = build_result_publisher(broker, queue=settings.messaging.result_queue)
     use_case = AssessOrders(
         assessor=_build_assessor(settings),
-        publisher=RabbitNotificationPublisher(publisher),
+        publisher=RabbitResultPublisher(publisher),
         profile=DEFAULT_PROFILE,
         threshold=settings.assessment.suitability_threshold,
         logger=logger,
@@ -70,7 +67,8 @@ def build_app(settings: Settings) -> AsgiFastStream:
     )
 
     @app.after_startup
-    async def _declare_dead_letter_queue() -> None:
+    async def _declare_queues() -> None:
         await broker.declare_queue(build_dead_letter_queue(settings.messaging.input_queue))
+        await broker.declare_queue(build_result_queue(settings.messaging.result_queue))
 
     return app

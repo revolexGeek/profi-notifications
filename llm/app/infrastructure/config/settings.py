@@ -55,9 +55,8 @@ class GroqSettings(BaseSettings):
 
 
 class MessagingSettings(BaseSettings):
-    input_queue: str = "parse.results"
-    notify_exchange: str = "notifications"
-    notify_routing_key: str = "notify"
+    input_queue: str = "assess.requests"
+    result_queue: str = "assess.results"
     prefetch: Annotated[int, Field(gt=0)] = 1
 
     model_config = SettingsConfigDict(
