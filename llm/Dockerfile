@@ -1,6 +1,3 @@
-# syntax=docker/dockerfile:1
-
-# --- builder: ставим только рантайм-зависимости в /app/.venv -----------------
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 ENV UV_COMPILE_BYTECODE=1 \
@@ -12,7 +9,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-# --- runtime: минимальный образ, non-root, tini как PID 1 --------------------
+
 FROM python:3.12-slim-bookworm AS runtime
 
 RUN apt-get update \
@@ -22,8 +19,7 @@ RUN apt-get update \
     && useradd --system --gid app --home-dir /app app
 
 WORKDIR /app
-# venv из builder переносим как есть: uv-образ построен на том же python:3.12-slim,
-# интерпретатор лежит по одному пути (/usr/local/bin), поэтому venv рабочий.
+
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app app ./app
 
