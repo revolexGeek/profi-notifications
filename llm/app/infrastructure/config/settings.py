@@ -2,6 +2,11 @@
 
 Настройки сгруппированы по внешним системам; каждая группа читает свой префикс
 `GROUP__`. Верхний `Settings` агрегирует их, `get_settings()` кэширует инстанс.
+
+Дефолты держим в ассайн-форме, а вложенные группы подставляем через `lambda`,
+чтобы конфиг был чистым и для mypy, и для Pyright (он не знает про env-источники
+BaseSettings). Обязательный `GROQ__API_KEY` смоделирован как непустая строка:
+дефолт `""` валидируется и падает, если переменная не задана.
 """
 
 from functools import lru_cache
@@ -13,11 +18,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class RabbitMQSettings(BaseSettings):
-    host: Annotated[str, Field(default="localhost")]
-    port: Annotated[int, Field(default=5672)]
-    username: Annotated[str, Field(default="guest")]
-    password: Annotated[str, Field(default="guest")]
-    vhost: Annotated[str, Field(default="/")]
+    host: str = "localhost"
+    port: int = 5672
+    username: str = "guest"
+    password: str = "guest"
+    vhost: str = "/"
 
     model_config = SettingsConfigDict(
         env_prefix="RABBITMQ__",
@@ -35,11 +40,11 @@ class RabbitMQSettings(BaseSettings):
 
 
 class GroqSettings(BaseSettings):
-    api_key: Annotated[str, Field(min_length=1)]
-    model: Annotated[str, Field(default="llama-3.3-70b-versatile")]
-    temperature: Annotated[float, Field(default=0.0, ge=0.0, le=2.0)]
-    timeout: Annotated[float, Field(default=30.0, gt=0)]
-    max_retries: Annotated[int, Field(default=0, ge=0)]
+    api_key: Annotated[str, Field(min_length=1, validate_default=True)] = ""
+    model: str = "llama-3.3-70b-versatile"
+    temperature: Annotated[float, Field(ge=0.0, le=2.0)] = 0.0
+    timeout: Annotated[float, Field(gt=0)] = 30.0
+    max_retries: Annotated[int, Field(ge=0)] = 0
 
     model_config = SettingsConfigDict(
         env_prefix="GROQ__",
@@ -50,10 +55,10 @@ class GroqSettings(BaseSettings):
 
 
 class MessagingSettings(BaseSettings):
-    input_queue: Annotated[str, Field(default="parse.results")]
-    notify_exchange: Annotated[str, Field(default="notifications")]
-    notify_routing_key: Annotated[str, Field(default="notify")]
-    prefetch: Annotated[int, Field(default=1, gt=0)]
+    input_queue: str = "parse.results"
+    notify_exchange: str = "notifications"
+    notify_routing_key: str = "notify"
+    prefetch: Annotated[int, Field(gt=0)] = 1
 
     model_config = SettingsConfigDict(
         env_prefix="MESSAGING__",
@@ -64,7 +69,7 @@ class MessagingSettings(BaseSettings):
 
 
 class AssessmentSettings(BaseSettings):
-    suitability_threshold: Annotated[int, Field(default=60, ge=0, le=100)]
+    suitability_threshold: Annotated[int, Field(ge=0, le=100)] = 60
 
     model_config = SettingsConfigDict(
         env_prefix="ASSESSMENT__",
@@ -75,11 +80,11 @@ class AssessmentSettings(BaseSettings):
 
 
 class Settings(BaseSettings):
-    rabbitmq: RabbitMQSettings = Field(default_factory=RabbitMQSettings)
-    groq: GroqSettings = Field(default_factory=GroqSettings)
-    messaging: MessagingSettings = Field(default_factory=MessagingSettings)
-    assessment: AssessmentSettings = Field(default_factory=AssessmentSettings)
-    log_level: Annotated[str, Field(default="info")]
+    rabbitmq: RabbitMQSettings = Field(default_factory=lambda: RabbitMQSettings())
+    groq: GroqSettings = Field(default_factory=lambda: GroqSettings())
+    messaging: MessagingSettings = Field(default_factory=lambda: MessagingSettings())
+    assessment: AssessmentSettings = Field(default_factory=lambda: AssessmentSettings())
+    log_level: str = "info"
 
     model_config = SettingsConfigDict(
         env_file=".env",

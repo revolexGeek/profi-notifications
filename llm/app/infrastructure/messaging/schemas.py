@@ -5,7 +5,7 @@
 camelCase-контракт, который потребляет TS-сервис notifications.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from app.domain.notification import NotificationCommand, ParseMode
 
@@ -69,13 +69,16 @@ class ParseResultMessage(BaseModel):
 
 
 class NotificationMessage(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
+    # serialization_alias: конструируем по snake_case, camelCase — только при by_alias-дампе
     text: str
-    parse_mode: ParseMode | None = Field(default=None, alias="parseMode")
-    disable_notification: bool | None = Field(default=None, alias="disableNotification")
-    disable_web_page_preview: bool | None = Field(default=None, alias="disableWebPagePreview")
-    message_thread_id: int | None = Field(default=None, alias="messageThreadId")
+    parse_mode: ParseMode | None = Field(default=None, serialization_alias="parseMode")
+    disable_notification: bool | None = Field(
+        default=None, serialization_alias="disableNotification"
+    )
+    disable_web_page_preview: bool | None = Field(
+        default=None, serialization_alias="disableWebPagePreview"
+    )
+    message_thread_id: int | None = Field(default=None, serialization_alias="messageThreadId")
 
     @classmethod
     def from_command(cls, command: NotificationCommand) -> "NotificationMessage":

@@ -1,4 +1,10 @@
-"""Тесты конфигурации (pydantic-settings, nested-стиль по группам)."""
+"""Тесты конфигурации (pydantic-settings, nested-стиль по группам).
+
+Все кейсы изолированы от реального .env через chdir во временную папку —
+иначе локальный .env разработчика перебивал бы дефолты и required-проверку.
+"""
+
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -6,7 +12,8 @@ from pydantic import ValidationError
 from app.infrastructure.config.settings import Settings
 
 
-def test_reads_env_by_group_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_reads_env_by_group_prefix(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GROQ__API_KEY", "k")
     monkeypatch.setenv("ASSESSMENT__SUITABILITY_THRESHOLD", "75")
     monkeypatch.setenv("MESSAGING__INPUT_QUEUE", "assess.requests")
@@ -22,7 +29,8 @@ def test_reads_env_by_group_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.rabbitmq.url == "amqp://u:p@rabbit:5672/%2F"
 
 
-def test_applies_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_applies_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GROQ__API_KEY", "k")
 
     settings = Settings()
@@ -34,7 +42,8 @@ def test_applies_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.groq.model == "llama-3.3-70b-versatile"
 
 
-def test_requires_groq_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_requires_groq_api_key(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("GROQ__API_KEY", raising=False)
 
     with pytest.raises(ValidationError):

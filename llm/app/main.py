@@ -27,8 +27,9 @@ from app.infrastructure.observability.logging import JsonLogger
 
 
 def _build_assessor(settings: Settings) -> GroqAssessor:
-    model = ChatGroq(
-        model_name=settings.groq.model,
+    # langchain-плагин mypy требует field-name `model_name`, Pyright и публичный API — `model`.
+    model = ChatGroq(  # type: ignore[call-arg]
+        model=settings.groq.model,
         temperature=settings.groq.temperature,
         max_retries=settings.groq.max_retries,
         timeout=settings.groq.timeout,
