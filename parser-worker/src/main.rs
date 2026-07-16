@@ -39,6 +39,17 @@ async fn main() -> Result<()> {
 
     let use_case = ProcessParseRequest::new(cookies, board, publisher);
 
+    // Liveness heartbeat for the container healthcheck: refresh /tmp/health
+    // while the consumer loop runs. The process already exits on AMQP loss, so
+    // a stale file signals a wedged event loop.
+    tokio::spawn(async {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(10));
+        loop {
+            ticker.tick().await;
+            let _ = std::fs::write("/tmp/health", b"ok");
+        }
+    });
+
     tokio::select! {
         result = consumer.run(|request| async { use_case.execute(request).await.map(|_| ()) }) => result?,
         _ = tokio::signal::ctrl_c() => info!("получен сигнал остановки, завершаюсь"),
