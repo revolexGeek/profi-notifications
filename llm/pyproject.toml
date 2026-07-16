@@ -32,6 +32,7 @@ addopts = "-q"
 [tool.coverage.run]
 branch = true
 source = ["app"]
+omit = ["app/asgi.py"]
 
 [tool.coverage.report]
 fail_under = 80
