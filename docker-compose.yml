@@ -302,6 +302,49 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  scheduler:
+    build:
+      context: ./scheduler
+      dockerfile: Dockerfile
+    image: profi-scheduler:0.1.0
+    container_name: profi-scheduler
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      RABBITMQ__HOST: rabbitmq
+      RABBITMQ__USERNAME: ${RABBITMQ_USER:-profi}
+      RABBITMQ__PASSWORD: ${RABBITMQ_PASS:-profi}
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    deploy:
+      replicas: 1  # одна реплика — иначе команды дублируются
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   profi-net:
     driver: bridge
