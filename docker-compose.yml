@@ -261,6 +261,47 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  notifications:
+    build:
+      context: ./notifications
+      dockerfile: Dockerfile
+    image: profi-notifications:0.1.0
+    container_name: profi-notifications
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-profi}:${RABBITMQ_PASS:-profi}@rabbitmq:5672"
+      HTTP_PORT: "3000"
+
+    ports:
+      - "127.0.0.1:3000:3000"
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   profi-net:
     driver: bridge
