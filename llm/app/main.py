@@ -36,7 +36,10 @@ def _build_assessor(settings: Settings) -> OpenAiAssessor:
         max_tokens=settings.llm.max_tokens,
         timeout=settings.llm.timeout,
         max_retries=settings.llm.max_retries,
-        extra_body={"service_tier": settings.llm.service_tier},
+        extra_body={
+            "service_tier": settings.llm.service_tier,
+            "chat_template_kwargs": {"enable_thinking": settings.llm.enable_thinking},
+        },
     )
     structured = cast(StructuredAssessor, model.with_structured_output(LlmAssessmentSchema))
     return OpenAiAssessor(structured)

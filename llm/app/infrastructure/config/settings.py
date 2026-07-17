@@ -50,6 +50,9 @@ class LlmSettings(BaseSettings):
     timeout: Annotated[float, Field(gt=0)] = 60.0
     max_retries: Annotated[int, Field(ge=0)] = 3
     service_tier: str = "flex"
+    # Qwen3 и др. reasoning-модели: выключаем «мышление» (иначе <think> съедает
+    # токены до JSON и ответ обрезается). Для задачи-классификации не нужно.
+    enable_thinking: bool = False
 
     model_config = SettingsConfigDict(
         env_prefix="LLM__",
