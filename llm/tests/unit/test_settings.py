@@ -14,7 +14,7 @@ from app.infrastructure.config.settings import Settings
 
 def test_reads_env_by_group_prefix(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("GROQ__API_KEY", "k")
+    monkeypatch.setenv("LLM__API_KEY", "k")
     monkeypatch.setenv("ASSESSMENT__SUITABILITY_THRESHOLD", "75")
     monkeypatch.setenv("MESSAGING__INPUT_QUEUE", "custom.in")
     monkeypatch.setenv("RABBITMQ__HOST", "rabbit")
@@ -23,7 +23,7 @@ def test_reads_env_by_group_prefix(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
 
     settings = Settings()
 
-    assert settings.groq.api_key == "k"
+    assert settings.llm.api_key == "k"
     assert settings.assessment.suitability_threshold == 75
     assert settings.messaging.input_queue == "custom.in"
     assert settings.rabbitmq.url == "amqp://u:p@rabbit:5672/%2F"
@@ -31,19 +31,20 @@ def test_reads_env_by_group_prefix(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
 
 def test_applies_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("GROQ__API_KEY", "k")
+    monkeypatch.setenv("LLM__API_KEY", "k")
 
     settings = Settings()
 
     assert settings.messaging.input_queue == "assess.requests"
     assert settings.messaging.result_queue == "assess.results"
     assert settings.assessment.suitability_threshold == 60
-    assert settings.groq.model == "llama-3.3-70b-versatile"
+    assert settings.llm.model == "Qwen/Qwen3-32B"
+    assert settings.llm.base_url == "https://api.deepinfra.com/v1/openai"
 
 
-def test_requires_groq_api_key(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_requires_llm_api_key(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("GROQ__API_KEY", raising=False)
+    monkeypatch.delenv("LLM__API_KEY", raising=False)
 
     with pytest.raises(ValidationError):
         Settings()
