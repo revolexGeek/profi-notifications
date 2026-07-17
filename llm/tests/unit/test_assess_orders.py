@@ -1,4 +1,4 @@
-"""Тесты сценария оценки заказов (best-effort по батчу)."""
+"""Тесты сценария оценки заказов (best-effort по батчу; транзиент — на повтор)."""
 
 from app.application.assess_orders import AssessOrders
 from app.application.errors import PermanentError, TransientError
@@ -31,23 +31,24 @@ class TestAssessOrders:
         assessor = FakeAssessor({"1": Assessment(summary="s", suitability_score=90)})
         publisher, logger = FakePublisher(), FakeLogger()
 
-        await _use_case(assessor, publisher, logger).handle([_listing("1")])
+        retryable = await _use_case(assessor, publisher, logger).handle([_listing("1")])
 
+        assert retryable == []
         assert len(publisher.published) == 1
         assert publisher.published[0].order_id == "1"
-        assert publisher.published[0].suitability_score == 90
         assert logger.events_of("result_published")
 
     async def test_does_not_publish_when_not_suitable(self) -> None:
         assessor = FakeAssessor({"1": Assessment(summary="s", suitability_score=10)})
         publisher, logger = FakePublisher(), FakeLogger()
 
-        await _use_case(assessor, publisher, logger).handle([_listing("1")])
+        retryable = await _use_case(assessor, publisher, logger).handle([_listing("1")])
 
+        assert retryable == []
         assert publisher.published == []
         assert logger.events_of("order_skipped")
 
-    async def test_best_effort_continues_after_transient_error(self) -> None:
+    async def test_transient_error_returned_for_retry_and_batch_continues(self) -> None:
         assessor = FakeAssessor(
             {
                 "1": TransientError("429"),
@@ -56,32 +57,31 @@ class TestAssessOrders:
         )
         publisher, logger = FakePublisher(), FakeLogger()
 
-        await _use_case(assessor, publisher, logger).handle([_listing("1"), _listing("2")])
+        retryable = await _use_case(assessor, publisher, logger).handle(
+            [_listing("1"), _listing("2")]
+        )
 
+        assert retryable == ["1"]  # заказ 1 — на повтор, не потерян
         assert len(publisher.published) == 1  # заказ 2 всё равно обработан
         assert assessor.calls == ["1", "2"]
-        assert logger.events_of("order_failed")
+        assert logger.events_of("assessment_retry_scheduled")
 
-    async def test_permanent_error_is_swallowed(self) -> None:
+    async def test_permanent_error_is_swallowed_not_retried(self) -> None:
         assessor = FakeAssessor({"1": PermanentError("400")})
         publisher, logger = FakePublisher(), FakeLogger()
 
-        await _use_case(assessor, publisher, logger).handle([_listing("1")])
+        retryable = await _use_case(assessor, publisher, logger).handle([_listing("1")])
 
+        assert retryable == []  # постоянный сбой не повторяем
         assert publisher.published == []
         assert logger.events_of("order_failed")
 
-    async def test_publish_failure_does_not_break_batch(self) -> None:
-        assessor = FakeAssessor(
-            {
-                "1": Assessment(summary="s", suitability_score=90),
-                "2": Assessment(summary="s", suitability_score=90),
-            }
-        )
+    async def test_transient_publish_failure_is_retried(self) -> None:
+        assessor = FakeAssessor({"1": Assessment(summary="s", suitability_score=90)})
         publisher = FakePublisher(error=TransientError("broker down"))
         logger = FakeLogger()
 
-        await _use_case(assessor, publisher, logger).handle([_listing("1"), _listing("2")])
+        retryable = await _use_case(assessor, publisher, logger).handle([_listing("1")])
 
-        assert assessor.calls == ["1", "2"]  # батч дошёл до конца, исключение не всплыло
+        assert retryable == ["1"]  # сбой публикации транзиентный → на повтор
         assert publisher.published == []

@@ -7,7 +7,11 @@ from faststream.rabbit import RabbitBroker, TestRabbitBroker
 from app.domain.listing import Listing
 from app.domain.notification import NotificationCommand
 from app.domain.result import AssessmentResult
-from app.infrastructure.messaging.broker import build_input_queue, build_result_publisher
+from app.infrastructure.messaging.broker import (
+    build_input_queue,
+    build_result_publisher,
+    build_retry_publisher,
+)
 from app.infrastructure.messaging.publisher import RabbitResultPublisher
 from app.infrastructure.messaging.subscriber import register_orders_subscriber
 
@@ -58,11 +62,15 @@ _PARSE_RESULT = {
 async def test_subscriber_maps_orders_and_delegates() -> None:
     seen: list[Listing] = []
 
-    async def handle(listings: list[Listing]) -> None:
+    async def handle(listings: list[Listing]) -> list[str]:
         seen.extend(listings)
+        return []
 
     broker = RabbitBroker()
-    register_orders_subscriber(broker, build_input_queue("assess.requests"), handle)
+    retry = build_retry_publisher(broker, input_queue="assess.requests")
+    register_orders_subscriber(
+        broker, build_input_queue("assess.requests"), handle, retry_publisher=retry
+    )
 
     async with TestRabbitBroker(broker) as br:
         await br.publish(_PARSE_RESULT, queue="assess.requests")
@@ -70,6 +78,23 @@ async def test_subscriber_maps_orders_and_delegates() -> None:
     assert [listing.id for listing in seen] == ["1", "2"]
     assert seen[0].is_remote is True
     assert seen[0].budget is not None
+
+
+async def test_transient_orders_republished_to_retry_queue() -> None:
+    async def handle(listings: list[Listing]) -> list[str]:
+        return [listing.id for listing in listings]  # все транзиентные → на повтор
+
+    broker = RabbitBroker()
+    retry = build_retry_publisher(broker, input_queue="assess.requests")
+    register_orders_subscriber(
+        broker, build_input_queue("assess.requests"), handle, retry_publisher=retry
+    )
+
+    async with TestRabbitBroker(broker) as br:
+        await br.publish(_PARSE_RESULT, queue="assess.requests")
+        republished = cast(Any, retry).mock.call_args.args[0]
+
+    assert [order["id"] for order in republished["orders"]] == ["1", "2"]
 
 
 async def test_publisher_sends_result_to_assess_results() -> None:
@@ -84,7 +109,6 @@ async def test_publisher_sends_result_to_assess_results() -> None:
 
     async with TestRabbitBroker(broker):
         await adapter.publish(result)
-        # .mock навешивает TestRabbitBroker в рантайме; у типа PublisherTransport его нет
         cast(Any, result_publisher).mock.assert_called_once_with(
             {
                 "order_id": "42",
