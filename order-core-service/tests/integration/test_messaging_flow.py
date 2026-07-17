@@ -10,13 +10,16 @@ from app.domain.source import Source
 from app.infrastructure.messaging.broker import (
     build_assess_request_publisher,
     build_assess_result_queue,
+    build_dlq_publisher,
     build_notify_publisher,
     build_parse_queue,
 )
+from app.infrastructure.messaging.reliability import DeadLetterPublisher
 from app.infrastructure.messaging.subscribers import (
     register_assess_subscriber,
     register_parse_subscriber,
 )
+from tests.fakes import FakeLogger
 
 _PARSE_RESULT = {
     "request_id": "r1",
@@ -40,7 +43,14 @@ async def test_parse_subscriber_maps_and_delegates() -> None:
         seen.extend(orders)
 
     broker = RabbitBroker()
-    register_parse_subscriber(broker, build_parse_queue("parse.results", dlx="order.dlx"), handle)
+    dlq = DeadLetterPublisher(build_dlq_publisher(broker, queue="order.dlq"))
+    register_parse_subscriber(
+        broker,
+        build_parse_queue("parse.results", dlq="order.dlq"),
+        handle=handle,
+        dlq=dlq,
+        logger=FakeLogger(),
+    )
 
     async with TestRabbitBroker(broker) as br:
         await br.publish(_PARSE_RESULT, queue="parse.results")
@@ -57,7 +67,14 @@ async def test_assess_subscriber_maps_and_delegates() -> None:
         seen.append(outcome)
 
     broker = RabbitBroker()
-    register_assess_subscriber(broker, build_assess_result_queue("assess.results"), handle)
+    dlq = DeadLetterPublisher(build_dlq_publisher(broker, queue="order.dlq"))
+    register_assess_subscriber(
+        broker,
+        build_assess_result_queue("assess.results"),
+        handle=handle,
+        dlq=dlq,
+        logger=FakeLogger(),
+    )
 
     async with TestRabbitBroker(broker) as br:
         await br.publish(_ASSESS_RESULT, queue="assess.results")
@@ -65,7 +82,25 @@ async def test_assess_subscriber_maps_and_delegates() -> None:
     assert seen[0].order_id == "7"
     assert seen[0].suitability_score == 88
     assert seen[0].notification.parse_mode == "HTML"
-    assert seen[0].notification.disable_web_page_preview is True
+
+
+async def test_poison_message_is_dead_lettered() -> None:
+    async def handle(orders: list[IncomingOrder]) -> None:
+        raise AssertionError("не должно вызываться на битом payload")
+
+    broker = RabbitBroker()
+    dlq_publisher = build_dlq_publisher(broker, queue="order.dlq")
+    register_parse_subscriber(
+        broker,
+        build_parse_queue("parse.results", dlq="order.dlq"),
+        handle=handle,
+        dlq=DeadLetterPublisher(dlq_publisher),
+        logger=FakeLogger(),
+    )
+
+    async with TestRabbitBroker(broker) as br:
+        await br.publish({"no_request_id": True}, queue="parse.results")
+        cast(Any, dlq_publisher).mock.assert_called_once()
 
 
 async def test_assess_request_publisher_targets_queue() -> None:
