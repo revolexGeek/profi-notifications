@@ -46,8 +46,10 @@ class OutboxRepository(Protocol):
 
 
 class UnitOfWork(Protocol):
-    orders: OrderRepository
-    outbox: OutboxRepository
+    @property
+    def orders(self) -> OrderRepository: ...
+    @property
+    def outbox(self) -> OutboxRepository: ...
 
     async def __aenter__(self) -> "UnitOfWork": ...
     async def __aexit__(
