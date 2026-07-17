@@ -4,10 +4,11 @@
 (PostgreSQL, RabbitMQ, логгер) подставляются в composition root.
 """
 
+import uuid
 from types import TracebackType
-from typing import Protocol
+from typing import Any, Protocol
 
-from app.application.dto import IncomingOrder
+from app.application.dto import IncomingOrder, PendingEvent
 from app.domain.notification import NotificationCommand
 from app.domain.order import Order
 from app.domain.source import Source
@@ -57,6 +58,25 @@ class UnitOfWork(Protocol):
     ) -> bool | None: ...
     async def commit(self) -> None: ...
     async def rollback(self) -> None: ...
+
+
+class EventPublisher(Protocol):
+    async def publish(self, destination: str, payload: dict[str, Any]) -> None: ...
+
+
+class OutboxDispatch(Protocol):
+    """Транзакционный клейм outbox для реле (FOR UPDATE SKIP LOCKED)."""
+
+    async def __aenter__(self) -> "OutboxDispatch": ...
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool | None: ...
+    async def claim_pending(self, limit: int) -> list[PendingEvent]: ...
+    async def mark_published(self, ids: list[uuid.UUID]) -> None: ...
+    async def commit(self) -> None: ...
 
 
 class Logger(Protocol):

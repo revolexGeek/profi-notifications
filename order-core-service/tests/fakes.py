@@ -1,8 +1,9 @@
 """Фейковые реализации портов приложения для тестов (без БД и брокера)."""
 
+import uuid
 from types import TracebackType
 
-from app.application.dto import IncomingOrder
+from app.application.dto import IncomingOrder, PendingEvent
 from app.domain.notification import NotificationCommand
 from app.domain.order import Order
 from app.domain.source import Source
@@ -125,3 +126,48 @@ class FakeLogger:
 
     def events_of(self, event: str) -> list[dict[str, object]]:
         return [fields for _, name, fields in self.events if name == event]
+
+
+class FakeEventPublisher:
+    def __init__(self) -> None:
+        self.published: list[tuple[str, dict[str, object]]] = []
+
+    async def publish(self, destination: str, payload: dict[str, object]) -> None:
+        self.published.append((destination, payload))
+
+
+class FakeOutboxDispatch:
+    def __init__(self, factory: "FakeOutboxDispatchFactory") -> None:
+        self._factory = factory
+
+    async def __aenter__(self) -> "FakeOutboxDispatch":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool:
+        return False
+
+    async def claim_pending(self, limit: int) -> list[PendingEvent]:
+        return self._factory.pending[:limit]
+
+    async def mark_published(self, ids: list[uuid.UUID]) -> None:
+        marked = set(ids)
+        self._factory.published_ids.extend(ids)
+        self._factory.pending = [e for e in self._factory.pending if e.id not in marked]
+
+    async def commit(self) -> None:
+        self._factory.committed_count += 1
+
+
+class FakeOutboxDispatchFactory:
+    def __init__(self, pending: list[PendingEvent]) -> None:
+        self.pending = list(pending)
+        self.published_ids: list[uuid.UUID] = []
+        self.committed_count = 0
+
+    def __call__(self) -> FakeOutboxDispatch:
+        return FakeOutboxDispatch(self)

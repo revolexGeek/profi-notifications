@@ -1,9 +1,10 @@
 """Входные DTO сценариев приложения.
 
 `IncomingOrder` — принятая заявка: идентичность для дедупа + сырой заказ, который
-«мозг» форвардит в llm как есть (домен его не интерпретирует).
+«мозг» форвардит в llm как есть. `PendingEvent` — строка outbox к публикации.
 """
 
+import uuid
 from typing import Any
 
 from pydantic import BaseModel
@@ -19,3 +20,9 @@ class IncomingOrder(BaseModel):
     payload: OrderPayload
     request_id: str | None = None
     fetched_at: int = 0
+
+
+class PendingEvent(BaseModel):
+    id: uuid.UUID
+    destination: str
+    payload: dict[str, Any]
