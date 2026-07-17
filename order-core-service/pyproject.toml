@@ -65,6 +65,7 @@ DEP002 = ["uvicorn", "alembic", "asyncpg"]
 [tool.vulture]
 # pydantic-поля/model_config и декораторные хендлеры FastStream vulture видит как
 # «unused» — ложные срабатывания; держим только находки высокой уверенности.
+# `tb` — обязательный хвост сигнатуры __aexit__; `scope` — контракт ASGI-хендлера.
 min_confidence = 80
-ignore_names = ["model_config"]
+ignore_names = ["model_config", "tb", "scope"]
 ignore_decorators = ["@broker.subscriber", "@app.after_startup", "@app.after_shutdown"]
