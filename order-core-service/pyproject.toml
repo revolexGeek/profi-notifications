@@ -1,0 +1,71 @@
+[project]
+name = "order-core-service"
+version = "0.1.0"
+description = "Сервис-«мозг»: приём заявок Profi.ru, дедуп, оркестрация оценки (llm) и уведомлений (notifications) через RabbitMQ + PostgreSQL (Outbox)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "faststream[rabbit]>=0.7.2",
+    "sqlalchemy[asyncio]>=2.0.43",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
+    "uvicorn>=0.51.0",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=2.3.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.22",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"
+markers = [
+    "postgres: интеграционные тесты против реального PostgreSQL (нужен POSTGRES_TEST_URL)",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/asgi.py"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.deptry.per_rule_ignores]
+# asyncpg — драйвер, подключается по строке URL; alembic — CLI миграций;
+# uvicorn — ASGI-сервер из CMD. В коде app/ напрямую не импортируются.
+DEP002 = ["uvicorn", "alembic", "asyncpg"]
+
+[tool.vulture]
+# pydantic-поля/model_config и декораторные хендлеры FastStream vulture видит как
+# «unused» — ложные срабатывания; держим только находки высокой уверенности.
+# `tb` — обязательный хвост сигнатуры __aexit__; `scope` — контракт ASGI-хендлера.
+min_confidence = 80
+ignore_names = ["model_config", "tb", "scope"]
+ignore_decorators = ["@broker.subscriber", "@app.after_startup", "@app.after_shutdown"]

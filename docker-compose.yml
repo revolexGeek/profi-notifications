@@ -35,6 +35,40 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  postgres:
+    image: postgres:17-alpine
+    container_name: profi-postgres
+    hostname: profi-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-profi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:-profi}
+      POSTGRES_DB: ${POSTGRES_DB:-order_core}
+
+    ports:
+      - "127.0.0.1:5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-profi} -d ${POSTGRES_DB:-order_core}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   auth-worker:
     build:
       context: ./auth-worker
@@ -176,6 +210,98 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  order-core-service:
+    build:
+      context: ./order-core-service
+      dockerfile: Dockerfile
+    image: profi-order-core-service:0.1.0
+    container_name: profi-order-core
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      RABBITMQ__HOST: rabbitmq
+      RABBITMQ__USERNAME: ${RABBITMQ_USER:-profi}
+      RABBITMQ__PASSWORD: ${RABBITMQ_PASS:-profi}
+      POSTGRES__HOST: postgres
+      POSTGRES__USERNAME: ${POSTGRES_USER:-profi}
+      POSTGRES__PASSWORD: ${POSTGRES_PASS:-profi}
+      POSTGRES__DB: ${POSTGRES_DB:-order_core}
+
+    ports:
+      - "127.0.0.1:8001:8000"
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 512M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  notifications:
+    build:
+      context: ./notifications
+      dockerfile: Dockerfile
+    image: profi-notifications:0.1.0
+    container_name: profi-notifications
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-profi}:${RABBITMQ_PASS:-profi}@rabbitmq:5672"
+      HTTP_PORT: "3000"
+
+    ports:
+      - "127.0.0.1:3000:3000"
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    networks:
+      - profi-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   scheduler:
     build:
       context: ./scheduler
@@ -225,3 +351,4 @@ networks:
 
 volumes:
   rabbitmq_data:
+  postgres_data:
