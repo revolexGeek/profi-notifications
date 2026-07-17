@@ -3,6 +3,7 @@
 import httpx
 import openai
 import pytest
+from openai.types.chat import ChatCompletion
 from pydantic import ValidationError
 
 from app.application.errors import PermanentError, TransientError
@@ -119,3 +120,11 @@ class TestOpenAiAssessorErrors:
         assessor = OpenAiAssessor(FakeStructured(error=_validation_error()))
         with pytest.raises(PermanentError):
             await assessor.assess(_listing(), PROFILE)
+
+    async def test_truncated_response_length_limit_is_permanent(self) -> None:
+        completion = ChatCompletion.model_construct(
+            id="x", choices=[], created=0, model="m", object="chat.completion"
+        )
+        error = openai.LengthFinishReasonError(completion=completion)
+        with pytest.raises(PermanentError):
+            await OpenAiAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)

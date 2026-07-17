@@ -54,6 +54,10 @@ class OpenAiAssessor:
             if exc.status_code >= 500:
                 raise TransientError(str(exc)) from exc
             raise PermanentError(str(exc)) from exc
+        except openai.LengthFinishReasonError as exc:
+            raise PermanentError(
+                f"ответ обрезан лимитом токенов — увеличь LLM__MAX_TOKENS ({exc})"
+            ) from exc
         except ValidationError as exc:
             raise PermanentError(f"invalid structured output: {exc}") from exc
         return _to_assessment(result)

@@ -46,7 +46,7 @@ class LlmSettings(BaseSettings):
     model: str = "Qwen/Qwen3-32B"
     base_url: str = "https://api.deepinfra.com/v1/openai"
     temperature: Annotated[float, Field(ge=0.0, le=2.0)] = 0.0
-    max_tokens: Annotated[int, Field(gt=0)] = 500
+    max_tokens: Annotated[int, Field(gt=0)] = 2048
     timeout: Annotated[float, Field(gt=0)] = 60.0
     max_retries: Annotated[int, Field(ge=0)] = 3
     service_tier: str = "flex"
