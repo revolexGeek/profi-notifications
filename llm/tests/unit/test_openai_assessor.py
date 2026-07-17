@@ -1,7 +1,7 @@
-"""Тесты Groq-адаптера: маппинг вывода и классификация ошибок."""
+"""Тесты OpenAI-адаптера: маппинг вывода и классификация ошибок."""
 
-import groq
 import httpx
+import openai
 import pytest
 from pydantic import ValidationError
 
@@ -9,7 +9,7 @@ from app.application.errors import PermanentError, TransientError
 from app.domain.assessment import Assessment
 from app.domain.listing import Listing
 from app.domain.profile import ContractorProfile
-from app.infrastructure.llm.groq_assessor import GroqAssessor
+from app.infrastructure.llm.openai_assessor import OpenAiAssessor
 from app.infrastructure.llm.prompts import Message
 from app.infrastructure.llm.schemas import LlmAssessmentSchema
 
@@ -18,7 +18,7 @@ PROFILE = ContractorProfile(
     unsupported_skills=["PHP"],
     rejected_projects=["дизайн"],
 )
-_REQUEST = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+_REQUEST = httpx.Request("POST", "https://api.deepinfra.com/v1/openai/chat/completions")
 
 
 class FakeStructured:
@@ -37,7 +37,7 @@ class FakeStructured:
         return self.result
 
 
-def _status_error(cls: type[groq.APIStatusError], code: int) -> groq.APIStatusError:
+def _status_error(cls: type[openai.APIStatusError], code: int) -> openai.APIStatusError:
     return cls("boom", response=httpx.Response(code, request=_REQUEST), body=None)
 
 
@@ -53,14 +53,14 @@ def _listing() -> Listing:
     return Listing(id="1", title="Python backend на FastAPI", description="нужен REST API")
 
 
-class TestGroqAssessorSuccess:
+class TestOpenAiAssessorSuccess:
     async def test_maps_schema_to_domain_assessment(self) -> None:
         schema = LlmAssessmentSchema(
             summary="Бэкенд на FastAPI",
             suitability_score=82,
             matched_strong=["Python", "FastAPI"],
         )
-        assessor = GroqAssessor(FakeStructured(result=schema))
+        assessor = OpenAiAssessor(FakeStructured(result=schema))
 
         assessment = await assessor.assess(_listing(), PROFILE)
 
@@ -71,7 +71,7 @@ class TestGroqAssessorSuccess:
 
     async def test_builds_messages_from_listing_and_profile(self) -> None:
         fake = FakeStructured(result=LlmAssessmentSchema(summary="s", suitability_score=50))
-        await GroqAssessor(fake).assess(_listing(), PROFILE)
+        await OpenAiAssessor(fake).assess(_listing(), PROFILE)
 
         messages = fake.last_input
         assert isinstance(messages, list)
@@ -83,39 +83,39 @@ class TestGroqAssessorSuccess:
         assert "Python backend на FastAPI" in human_text  # заявка попала в запрос
 
 
-class TestGroqAssessorErrors:
+class TestOpenAiAssessorErrors:
     async def test_rate_limit_is_transient(self) -> None:
-        error = _status_error(groq.RateLimitError, 429)
+        error = _status_error(openai.RateLimitError, 429)
         with pytest.raises(TransientError):
-            await GroqAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
+            await OpenAiAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
 
     async def test_server_error_is_transient(self) -> None:
-        error = _status_error(groq.InternalServerError, 500)
+        error = _status_error(openai.InternalServerError, 500)
         with pytest.raises(TransientError):
-            await GroqAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
+            await OpenAiAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
 
     async def test_timeout_is_transient(self) -> None:
         with pytest.raises(TransientError):
-            await GroqAssessor(FakeStructured(error=groq.APITimeoutError(request=_REQUEST))).assess(
-                _listing(), PROFILE
-            )
+            await OpenAiAssessor(
+                FakeStructured(error=openai.APITimeoutError(request=_REQUEST))
+            ).assess(_listing(), PROFILE)
 
     async def test_generic_5xx_status_is_transient(self) -> None:
-        error = _status_error(groq.APIStatusError, 503)
+        error = _status_error(openai.APIStatusError, 503)
         with pytest.raises(TransientError):
-            await GroqAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
+            await OpenAiAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
 
     async def test_auth_error_is_permanent(self) -> None:
-        error = _status_error(groq.AuthenticationError, 401)
+        error = _status_error(openai.AuthenticationError, 401)
         with pytest.raises(PermanentError):
-            await GroqAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
+            await OpenAiAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
 
     async def test_bad_request_is_permanent(self) -> None:
-        error = _status_error(groq.BadRequestError, 400)
+        error = _status_error(openai.BadRequestError, 400)
         with pytest.raises(PermanentError):
-            await GroqAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
+            await OpenAiAssessor(FakeStructured(error=error)).assess(_listing(), PROFILE)
 
     async def test_invalid_structured_output_is_permanent(self) -> None:
-        assessor = GroqAssessor(FakeStructured(error=_validation_error()))
+        assessor = OpenAiAssessor(FakeStructured(error=_validation_error()))
         with pytest.raises(PermanentError):
             await assessor.assess(_listing(), PROFILE)
