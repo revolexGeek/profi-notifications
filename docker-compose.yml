@@ -1,5 +1,11 @@
 name: profi-notifications
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   rabbitmq:
     image: rabbitmq:4-management
@@ -10,10 +16,6 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-profi}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-profi}
-
-    ports:
-      - "127.0.0.1:5672:5672"   # AMQP
-      - "127.0.0.1:15672:15672" # management UI
 
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
@@ -29,11 +31,7 @@ services:
       - profi-net
     security_opt:
       - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *default-logging
 
   postgres:
     image: postgres:17-alpine
@@ -46,11 +44,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASS:-profi}
       POSTGRES_DB: ${POSTGRES_DB:-order_core}
 
-    ports:
-      - "127.0.0.1:5432:5432"
 
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-profi} -d ${POSTGRES_DB:-order_core}"]
@@ -63,11 +59,7 @@ services:
       - profi-net
     security_opt:
       - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *default-logging
 
   auth-worker:
     build:
@@ -77,11 +69,8 @@ services:
     container_name: profi-auth-worker
     restart: unless-stopped
 
-    ports:
-      - "127.0.0.1:50051:50051"
-
     environment:
-      PROFI_GRPC_ADDR: "0.0.0.0:50051" # required: 127.0.0.1 is unreachable from outside the container
+      PROFI_GRPC_ADDR: "0.0.0.0:50051"
 
     env_file:
       - .env
@@ -106,17 +95,7 @@ services:
     tmpfs:
       - /tmp
 
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 128M
-
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *default-logging
 
   parser-worker:
     build:
@@ -156,17 +135,7 @@ services:
       start_period: 20s
       retries: 3
 
-    deploy:
-      resources:
-        limits:
-          cpus: "1.00"
-          memory: 256M
-
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *default-logging
 
   llm:
     build:
@@ -198,17 +167,8 @@ services:
     tmpfs:
       - /tmp
 
-    deploy:
-      resources:
-        limits:
-          cpus: "1.00"
-          memory: 512M
 
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *default-logging
 
   order-core-service:
     build:
@@ -249,17 +209,8 @@ services:
     tmpfs:
       - /tmp
 
-    deploy:
-      resources:
-        limits:
-          cpus: "1.00"
-          memory: 512M
 
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *default-logging
 
   notifications:
     build:
@@ -290,17 +241,7 @@ services:
     cap_drop:
       - ALL
 
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 128M
-
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *default-logging
 
   scheduler:
     build:
@@ -332,18 +273,7 @@ services:
     tmpfs:
       - /tmp
 
-    deploy:
-      replicas: 1  # одна реплика — иначе команды дублируются
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 128M
-
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *default-logging
 
 networks:
   profi-net:
