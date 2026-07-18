@@ -66,6 +66,7 @@ class MessagingSettings(BaseSettings):
     input_queue: str = "assess.requests"
     result_queue: str = "assess.results"
     prefetch: Annotated[int, Field(gt=0)] = 1
+    retry_ttl_ms: Annotated[int, Field(gt=0)] = 15000
 
     model_config = SettingsConfigDict(
         env_prefix="MESSAGING__",
