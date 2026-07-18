@@ -6,3 +6,4 @@ AGENTS.md
 CLAUDE.md
 .ruff_cache
 .claude
+postgres_data

@@ -8,13 +8,13 @@ from typing import cast
 
 from faststream.asgi import AsgiFastStream, make_ping_asgi
 from faststream.rabbit import Channel, RabbitBroker
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
 from app.application.assess_orders import AssessOrders
 from app.infrastructure.config.profile import DEFAULT_PROFILE
 from app.infrastructure.config.settings import Settings
-from app.infrastructure.llm.groq_assessor import GroqAssessor, StructuredAssessor
+from app.infrastructure.llm.openai_assessor import OpenAiAssessor, StructuredAssessor
 from app.infrastructure.llm.schemas import LlmAssessmentSchema
 from app.infrastructure.messaging.broker import (
     build_dead_letter_queue,
@@ -29,17 +29,22 @@ from app.infrastructure.messaging.subscriber import register_orders_subscriber
 from app.infrastructure.observability.logging import JsonLogger
 
 
-def _build_assessor(settings: Settings) -> GroqAssessor:
-    # langchain-плагин mypy требует field-name `model_name`, Pyright и публичный API — `model`.
-    model = ChatGroq(  # type: ignore[call-arg]
-        model=settings.groq.model,
-        temperature=settings.groq.temperature,
-        max_retries=settings.groq.max_retries,
-        timeout=settings.groq.timeout,
-        api_key=SecretStr(settings.groq.api_key),
+def _build_assessor(settings: Settings) -> OpenAiAssessor:
+    model = ChatOpenAI(
+        model=settings.llm.model,
+        base_url=settings.llm.base_url,
+        api_key=SecretStr(settings.llm.api_key),
+        temperature=settings.llm.temperature,
+        max_tokens=settings.llm.max_tokens,
+        timeout=settings.llm.timeout,
+        max_retries=settings.llm.max_retries,
+        extra_body={
+            "service_tier": settings.llm.service_tier,
+            "chat_template_kwargs": {"enable_thinking": settings.llm.enable_thinking},
+        },
     )
     structured = cast(StructuredAssessor, model.with_structured_output(LlmAssessmentSchema))
-    return GroqAssessor(structured)
+    return OpenAiAssessor(structured)
 
 
 def build_app(settings: Settings) -> AsgiFastStream:

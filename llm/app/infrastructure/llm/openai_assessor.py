@@ -1,12 +1,13 @@
-"""Адаптер оценки через Groq (LangChain structured output).
+"""Адаптер оценки через OpenAI-совместимый эндпоинт (LangChain structured output).
 
-Реализует порт LlmAssessor. Ретраи не держим здесь (max_retries=0 у модели):
-транзиентные сбои отдаём наверх как TransientError — заказ вернётся с ре-поллом.
+Реализует порт LlmAssessor. Транзиентные сбои (429/5xx/сеть) отдаём наверх как
+TransientError, постоянные — как PermanentError. Ретраи короткого rate limit
+держит сам клиент (`LLM__MAX_RETRIES`), устойчивые — подписчик (retry-очередь).
 """
 
 from typing import Protocol
 
-import groq
+import openai
 from pydantic import ValidationError
 
 from app.application.errors import PermanentError, TransientError
@@ -17,27 +18,27 @@ from app.infrastructure.llm.prompts import Message, build_messages
 from app.infrastructure.llm.schemas import LlmAssessmentSchema
 
 _TRANSIENT: tuple[type[Exception], ...] = (
-    groq.RateLimitError,
-    groq.APIConnectionError,  # включая APITimeoutError
-    groq.InternalServerError,
+    openai.RateLimitError,
+    openai.APIConnectionError,  # включая APITimeoutError
+    openai.InternalServerError,
 )
 _PERMANENT: tuple[type[Exception], ...] = (
-    groq.BadRequestError,
-    groq.AuthenticationError,
-    groq.PermissionDeniedError,
-    groq.NotFoundError,
-    groq.ConflictError,
-    groq.UnprocessableEntityError,
+    openai.BadRequestError,
+    openai.AuthenticationError,
+    openai.PermissionDeniedError,
+    openai.NotFoundError,
+    openai.ConflictError,
+    openai.UnprocessableEntityError,
 )
 
 
 class StructuredAssessor(Protocol):
-    """Раннабл `ChatGroq.with_structured_output(LlmAssessmentSchema)`."""
+    """Раннабл `ChatOpenAI.with_structured_output(LlmAssessmentSchema)`."""
 
     async def ainvoke(self, model_input: list[Message]) -> LlmAssessmentSchema: ...
 
 
-class GroqAssessor:
+class OpenAiAssessor:
     def __init__(self, structured: StructuredAssessor) -> None:
         self._structured = structured
 
@@ -49,10 +50,14 @@ class GroqAssessor:
             raise TransientError(str(exc)) from exc
         except _PERMANENT as exc:
             raise PermanentError(str(exc)) from exc
-        except groq.APIStatusError as exc:
+        except openai.APIStatusError as exc:
             if exc.status_code >= 500:
                 raise TransientError(str(exc)) from exc
             raise PermanentError(str(exc)) from exc
+        except openai.LengthFinishReasonError as exc:
+            raise PermanentError(
+                f"ответ обрезан лимитом токенов — увеличь LLM__MAX_TOKENS ({exc})"
+            ) from exc
         except ValidationError as exc:
             raise PermanentError(f"invalid structured output: {exc}") from exc
         return _to_assessment(result)
