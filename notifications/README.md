@@ -143,6 +143,17 @@ flowchart LR
 
 ## Запуск
 
+### В составе общего стека (рекомендуется)
+
+Из корня репозитория сервис поднимается вместе со всем конвейером (нужны
+`TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID` в корневом `.env`):
+
+```bash
+docker compose up -d notifications
+```
+
+Health и метрики — на `http://127.0.0.1:3000` (см. [эндпоинты](#http-эндпоинты)).
+
 ### Локально
 
 ```bash
@@ -151,7 +162,7 @@ cp .env.example .env   # и заполнить значения
 bun start              # или: bun run dev  (watch-режим)
 ```
 
-### Docker Compose (RabbitMQ + сервис)
+### Изолированный dev-стек (RabbitMQ + сервис)
 
 ```bash
 export TELEGRAM_BOT_TOKEN=...      # или положить в .env
